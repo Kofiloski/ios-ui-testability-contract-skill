@@ -1,0 +1,3 @@
+Planner output referenced identifiers that were not visible in the captured UI tree or documented in planner guidance:
+- sample.recipeForm.submit
+- sample.recipeForm.emptyState.create

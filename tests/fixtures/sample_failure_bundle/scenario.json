@@ -1,0 +1,15 @@
+{
+  "steps": [
+    {
+      "action": "launch"
+    },
+    {
+      "action": "tap",
+      "id": "sample.recipeForm.submit"
+    },
+    {
+      "action": "tap",
+      "id": "sample.recipeForm.emptyState.create"
+    }
+  ]
+}

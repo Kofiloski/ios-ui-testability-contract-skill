@@ -1,0 +1,3 @@
+{
+  "hierarchyDescription": "Application, identifier: 'sample.recipeForm', label: 'Add Recipe'\nTextField, identifier: 'sample.recipeForm.videoURL', label: 'Video URL'\nButton, identifier: 'sample.recipeForm.save', label: 'Save'"
+}

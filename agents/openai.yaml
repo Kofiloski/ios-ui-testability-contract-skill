@@ -1,0 +1,4 @@
+interface:
+  display_name: "iOS UI Testability Contract"
+  short_description: "Fix iOS UI automation accessibility contracts"
+  default_prompt: "Use $ios-ui-testability-contract to diagnose and fix a failing iOS UI automation or accessibility identifier contract."
