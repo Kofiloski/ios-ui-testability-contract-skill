@@ -1,0 +1,45 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ios-ui-testability-contract"
+version = "0.2.0"
+description = "CLI tools and Codex skill for diagnosing iOS UI automation contract failures."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { file = "LICENSE" }
+authors = [
+  { name = "Kristijan Kofiloski" }
+]
+keywords = [
+  "ios",
+  "swiftui",
+  "xcuitest",
+  "accessibility",
+  "automation",
+  "codex-skill"
+]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Environment :: Console",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3 :: Only",
+  "Topic :: Software Development :: Testing"
+]
+dependencies = []
+
+[project.urls]
+Homepage = "https://github.com/Kofiloski/ios-ui-testability-contract-skill"
+Repository = "https://github.com/Kofiloski/ios-ui-testability-contract-skill"
+
+[project.scripts]
+ios-ui-testability = "ios_ui_testability_contract.cli:main"
+
+[tool.setuptools]
+package-dir = { "" = "src" }
+
+[tool.setuptools.packages.find]
+where = ["src"]

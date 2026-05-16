@@ -37,14 +37,22 @@ Open these references as needed:
 
 Optional helper:
 
-- `scripts/inventory_accessibility_ids.py`
+- `ios-ui-testability ids`
   Use when you need a quick inventory of literal accessibility identifiers, duplicate literals, likely non-literal identifier assignments, or likely parent-container collisions in a repo.
-- `scripts/inventory_launch_contract.py`
+- `ios-ui-testability launch`
   Use when you need a quick inventory of launch arguments, automation environment keys, URL schemes, and likely routing hooks before blaming the UI tree.
-- `scripts/triage_ui_contract_failure.py`
-  Use when you have `summary.md`, a UI tree, a scenario file, and optionally `planner-validation-error.txt` and want a fast first-pass root-cause bucket before patching code. Use `--report-mode patch-plan` or `--report-mode full` when you want the helper to suggest the first contract edits instead of just classifying the failure.
-- `scripts/draft_planner_context.py`
+- `ios-ui-testability triage`
+  Use when you have `summary.md`, a UI tree, a scenario file, and optionally `planner-validation-error.txt` and want a fast first-pass root-cause bucket before patching code. Pass `--report-mode patch-plan` or `--report-mode full` when you want the helper to suggest the first contract edits instead of just classifying the failure.
+- `ios-ui-testability draft-context`
   Use when bootstrapping or tightening `.github/ai-ui/planner-context.md` from the repo's discovered launch hooks and stable identifiers. Pass `--output` when you want it to write the draft directly into a file.
+- `scripts/inventory_accessibility_ids.py`
+  Compatibility wrapper for `ios-ui-testability ids`.
+- `scripts/inventory_launch_contract.py`
+  Compatibility wrapper for `ios-ui-testability launch`.
+- `scripts/triage_ui_contract_failure.py`
+  Compatibility wrapper for `ios-ui-testability triage`.
+- `scripts/draft_planner_context.py`
+  Compatibility wrapper for `ios-ui-testability draft-context`.
 
 ## Inspect First
 

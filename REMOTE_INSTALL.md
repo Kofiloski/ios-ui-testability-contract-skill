@@ -6,16 +6,20 @@ Use this when you publish `ios-ui-testability-contract` as its own Git repositor
 
 The repository root should contain:
 
+- `pyproject.toml`
 - `SKILL.md`
 - `README.md`
 - `REMOTE_INSTALL.md`
 - `PUBLISHING.md`
+- `src/`
 - `references/`
 - `scripts/`
 - `tests/`
 - optional `examples/`
 
 Point your remote skill installer at the repository root, not a nested subfolder.
+
+The same repository can also be installed as a Python package to expose the `ios-ui-testability` CLI. The CLI is a helper surface; the skill workflow remains the source of judgment for deciding what code or scenario changes to make.
 
 ## Versioning
 

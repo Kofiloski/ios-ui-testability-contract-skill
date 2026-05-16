@@ -21,6 +21,13 @@ This skill is for cases where `XCUITest`, `AXe`, or `ios-ai-ui-check` cannot fin
 
 ## Install
 
+For the reusable CLI:
+
+```bash
+python -m pip install .
+ios-ui-testability --help
+```
+
 For Codex-style skills, copy or symlink this folder into your skills directory:
 
 ```bash
@@ -53,7 +60,7 @@ The same skill check now runs automatically on every branch push and pull reques
 Patch-plan mode from the sample fixture bundle:
 
 ```bash
-python3 scripts/triage_ui_contract_failure.py \
+ios-ui-testability triage \
   --summary tests/fixtures/sample_failure_bundle/summary.md \
   --ui-tree tests/fixtures/sample_failure_bundle/ui-tree.json \
   --scenario tests/fixtures/sample_failure_bundle/scenario.json \
@@ -61,8 +68,29 @@ python3 scripts/triage_ui_contract_failure.py \
   --report-mode full
 ```
 
+The old script paths remain available for compatibility:
+
+```bash
+python3 scripts/triage_ui_contract_failure.py --help
+```
+
+CLI subcommands:
+
+- `ios-ui-testability ids`
+  Inventory literal accessibility identifiers, duplicates, likely dynamic assignments, and likely parent-container collisions.
+- `ios-ui-testability launch`
+  Inventory launch arguments, automation environment keys, URL schemes, and route hints.
+- `ios-ui-testability triage`
+  Classify an artifact bundle into a likely root-cause bucket and optional patch plan.
+- `ios-ui-testability draft-context`
+  Draft `.github/ai-ui/planner-context.md` guidance from discovered launch hooks and stable identifiers.
+
 ## Repository Contents
 
+- `pyproject.toml`
+  Python package metadata and the `ios-ui-testability` console command.
+- `src/ios_ui_testability_contract/`
+  The reusable CLI and helper implementation.
 - `SKILL.md`
   The actual skill instructions and workflow.
 - `references/`

@@ -6,10 +6,12 @@ This folder is intended to be publishable as its own repository root.
 
 Keep these at the repo root:
 
+- `pyproject.toml`
 - `SKILL.md`
 - `README.md`
 - `PUBLISHING.md`
 - `REMOTE_INSTALL.md`
+- `src/`
 - `references/`
 - `scripts/`
 - `tests/`
@@ -34,6 +36,8 @@ That same check now runs automatically on every branch push and pull request thr
 5. if you support a moving compatibility tag, update `v0` after the release tag is published
 
 The repo also ships `.github/workflows/release.yml` for the manual GitHub-side release path. It reruns `./scripts/check-skill.sh`, creates the requested semantic tag, optionally updates the matching major tag such as `v0`, and then creates the GitHub release notes.
+
+The Python package exposes the `ios-ui-testability` command. Keep `src/` as the implementation source and leave the `scripts/` files as compatibility wrappers for older docs and skill installers.
 
 ## Upgrade Guidance
 

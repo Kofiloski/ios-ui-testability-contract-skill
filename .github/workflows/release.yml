@@ -42,6 +42,12 @@ jobs:
         shell: bash
         run: ./scripts/check-skill.sh
 
+      - name: Verify CLI install
+        shell: bash
+        run: |
+          python -m pip install -e .
+          ios-ui-testability --help
+
       - name: Configure git author
         shell: bash
         run: |

@@ -28,3 +28,15 @@ jobs:
       - name: Run skill checks
         shell: bash
         run: ./scripts/check-skill.sh
+
+      - name: Verify CLI install
+        shell: bash
+        run: |
+          python -m pip install -e .
+          ios-ui-testability --help
+          ios-ui-testability triage \
+            --summary tests/fixtures/sample_failure_bundle/summary.md \
+            --ui-tree tests/fixtures/sample_failure_bundle/ui-tree.json \
+            --scenario tests/fixtures/sample_failure_bundle/scenario.json \
+            --planner-validation-error tests/fixtures/sample_failure_bundle/planner-validation-error.txt \
+            --report-mode patch-plan

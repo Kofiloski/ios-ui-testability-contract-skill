@@ -1,3 +1,4 @@
+import os
 import subprocess
 import sys
 import tempfile
@@ -5,7 +6,9 @@ import unittest
 from pathlib import Path
 
 
-SCRIPTS_DIR = Path(__file__).resolve().parents[1] / "scripts"
+ROOT_DIR = Path(__file__).resolve().parents[1]
+SCRIPTS_DIR = ROOT_DIR / "scripts"
+SRC_DIR = ROOT_DIR / "src"
 FIXTURES_DIR = Path(__file__).resolve().parent / "fixtures"
 sys.path.insert(0, str(SCRIPTS_DIR))
 
@@ -15,6 +18,16 @@ import triage_ui_contract_failure  # noqa: E402
 
 
 class SkillScriptTests(unittest.TestCase):
+    def package_env(self) -> dict[str, str]:
+        env = os.environ.copy()
+        existing_pythonpath = env.get("PYTHONPATH")
+        env["PYTHONPATH"] = (
+            f"{SRC_DIR}{os.pathsep}{existing_pythonpath}"
+            if existing_pythonpath
+            else str(SRC_DIR)
+        )
+        return env
+
     def test_inventory_accessibility_ids_grades_dynamic_assignments(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo_root = Path(tmp)
@@ -148,6 +161,35 @@ class SkillScriptTests(unittest.TestCase):
 
         self.assertIn("Patch plan", completed.stdout)
         self.assertIn("planner-validation-error.txt", completed.stdout)
+        self.assertIn("sample.recipeForm.submit", completed.stdout)
+
+    def test_packaged_cli_triage_uses_fixture_bundle(self) -> None:
+        fixture_root = FIXTURES_DIR / "sample_failure_bundle"
+
+        completed = subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                "ios_ui_testability_contract",
+                "triage",
+                "--summary",
+                str(fixture_root / "summary.md"),
+                "--ui-tree",
+                str(fixture_root / "ui-tree.json"),
+                "--scenario",
+                str(fixture_root / "scenario.json"),
+                "--planner-validation-error",
+                str(fixture_root / "planner-validation-error.txt"),
+                "--report-mode",
+                "patch-plan",
+            ],
+            check=True,
+            capture_output=True,
+            env=self.package_env(),
+            text=True,
+        )
+
+        self.assertIn("Patch plan", completed.stdout)
         self.assertIn("sample.recipeForm.submit", completed.stdout)
 
     def test_draft_planner_context_can_write_output_file(self) -> None:
