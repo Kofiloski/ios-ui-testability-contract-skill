@@ -1,6 +1,6 @@
 ---
 name: ios-ui-testability-contract
-description: Diagnose and fix iOS UI automation contract failures in SwiftUI or UIKit by improving accessibility identifiers, element exposure, deterministic launch routes, and repo-local scenario or planner context. Use when XCUITest, AXe, or ios-ai-ui-check cannot find the intended element, finds the wrong element, interacts with a container instead of a child control, or cannot reach a screen deterministically.
+description: Diagnose and fix iOS UI automation, XCUITest, AXe, and ios-ai-ui-check contract failures in SwiftUI or UIKit by improving accessibilityIdentifier usage, accessibility identifiers, XCUIElement exposure, element types, deterministic launch routes, seeded state, scenario files, and planner context. Use when UI tests or AI UI agents cannot find the intended element, find the wrong element, tap a container instead of a Button/TextField/control, hit duplicate or unstable identifiers, fail to reach a screen, or need an app-side testability contract patch.
 ---
 
 # iOS UI Testability Contract

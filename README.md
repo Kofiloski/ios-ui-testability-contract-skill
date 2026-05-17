@@ -4,6 +4,19 @@ A focused agent skill for diagnosing and fixing iOS UI automation contract failu
 
 This skill is for cases where `XCUITest`, `AXe`, or `ios-ai-ui-check` cannot find the intended element, resolves the wrong element, or cannot reach a screen deterministically even though the product UI itself appears correct.
 
+## Agent Usage
+
+Use this skill when an AI agent needs to repair the app-side testability contract for an iOS UI automation failure, especially missing or duplicate `accessibilityIdentifier` values, wrong `XCUIElement` types, container collisions, unstable identifiers, unreachable screens, or incomplete launch routing.
+
+Prompt examples:
+
+- `Use $ios-ui-testability-contract to diagnose why XCUITest cannot find app.recipeForm.videoURL and patch the app-side contract.`
+- `Use $ios-ui-testability-contract to inspect this failing ios-ai-ui-check artifact bundle and fix the app-side automation surface.`
+- `Use $ios-ui-testability-contract to make this SwiftUI sheet reachable and testable through deterministic launch state.`
+- `Use $ios-ui-testability-contract to inspect this artifact bundle and give me a patch plan before editing code.`
+
+Agents should read `SKILL.md` first, inspect the failure artifact or UI tree before editing prompts, and load `references/` only for the failure pattern being fixed.
+
 ## What It Does
 
 - inspects failing UI automation artifacts before touching prompts
@@ -31,11 +44,11 @@ ios-ui-testability --help
 For Codex-style skills, copy or symlink this folder into your skills directory:
 
 ```bash
-cp -R ios-ui-testability-contract "${CODEX_HOME:-$HOME/.codex}/skills/"
+git clone https://github.com/Kofiloski/ios-ui-testability-contract-skill.git \
+  "${CODEX_HOME:-$HOME/.codex}/skills/ios-ui-testability-contract"
 ```
 
-If your workflow supports installing skills directly from a GitHub repo, publish this folder as its own repository and install from that repo URL.
-This folder is already structured to be that standalone repository root: keep `SKILL.md`, `README.md`, `references/`, `scripts/`, and `tests/` together and tag releases from that root.
+This folder is structured as a standalone skill repository. Keep `SKILL.md`, `README.md`, `references/`, `scripts/`, and `tests/` together and tag releases from that root.
 See [PUBLISHING.md](PUBLISHING.md) for the minimal standalone-repo release flow.
 See [REMOTE_INSTALL.md](REMOTE_INSTALL.md) for the remote-repo install contract and pinning guidance.
 This standalone-repo shape now also includes an MIT `LICENSE` plus GitHub Actions workflows for CI and manual releases.
@@ -47,13 +60,6 @@ Before publishing or updating the standalone repo, run:
 ```
 
 The same skill check now runs automatically on every branch push and pull request through `.github/workflows/ci.yml`.
-
-## Example Prompts
-
-- `Use $ios-ui-testability-contract to diagnose why XCUITest cannot find app.recipeForm.videoURL and patch the app-side contract.`
-- `Use $ios-ui-testability-contract to inspect this failing ios-ai-ui-check artifact bundle and fix the app-side automation surface.`
-- `Use $ios-ui-testability-contract to make this SwiftUI sheet reachable and testable through deterministic launch state.`
-- `Use $ios-ui-testability-contract to inspect this artifact bundle and give me a patch plan before editing code.`
 
 ## Example Helper Usage
 

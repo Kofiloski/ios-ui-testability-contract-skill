@@ -13,12 +13,20 @@ authors = [
   { name = "Kristijan Kofiloski" }
 ]
 keywords = [
-  "ios",
-  "swiftui",
-  "xcuitest",
   "accessibility",
+  "accessibility-identifier",
+  "ai-agent",
+  "ai-skill",
   "automation",
-  "codex-skill"
+  "codex-skill",
+  "ios",
+  "ios-ai-ui-check",
+  "ios-testing",
+  "swiftui",
+  "ui-testing",
+  "uikit",
+  "xcuitest",
+  "xcode"
 ]
 classifiers = [
   "Development Status :: 3 - Alpha",
