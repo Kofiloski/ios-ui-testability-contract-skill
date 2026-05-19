@@ -1,5 +1,7 @@
 # iOS UI Testability Contract
 
+[![CI](https://github.com/Kofiloski/ios-ui-testability-contract-skill/actions/workflows/ci.yml/badge.svg)](https://github.com/Kofiloski/ios-ui-testability-contract-skill/actions/workflows/ci.yml)
+
 A focused agent skill for diagnosing and fixing iOS UI automation contract failures in SwiftUI and UIKit.
 
 This skill is for cases where `XCUITest`, `AXe`, or `ios-ai-ui-check` cannot find the intended element, resolves the wrong element, or cannot reach a screen deterministically even though the product UI itself appears correct.
@@ -72,6 +74,17 @@ ios-ui-testability triage \
   --scenario tests/fixtures/sample_failure_bundle/scenario.json \
   --planner-validation-error tests/fixtures/sample_failure_bundle/planner-validation-error.txt \
   --report-mode full
+```
+
+Example output excerpt:
+
+```text
+Bucket: scenario contract
+Confidence: high
+
+Patch plan:
+- Remove or update stale scenario identifiers that are missing from the UI tree.
+- Prefer stable app-side identifiers such as sample.recipeForm.submit for replayable controls.
 ```
 
 The old script paths remain available for compatibility:

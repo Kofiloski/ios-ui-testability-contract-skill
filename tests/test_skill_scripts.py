@@ -39,11 +39,11 @@ class SkillScriptTests(unittest.TestCase):
                     var body: some View {
                         VStack {
                             TextField("URL", text: .constant(""))
-                                .accessibilityIdentifier("cookyard.recipeForm.videoURL")
+                                .accessibilityIdentifier("sample.recipeForm.videoURL")
                             Text("Row")
-                                .accessibilityIdentifier("cookyard.recipes.row.\\(recipe.id.uuidString)")
+                                .accessibilityIdentifier("sample.recipes.row.\\(recipe.id.uuidString)")
                             Button("Next") {}
-                                .accessibilityIdentifier(step == .finish ? "cookyard.onboarding.finish" : "cookyard.onboarding.next")
+                                .accessibilityIdentifier(step == .finish ? "sample.onboarding.finish" : "sample.onboarding.next")
                         }
                     }
                 }
@@ -71,9 +71,9 @@ class SkillScriptTests(unittest.TestCase):
                     var body: some View {
                         VStack {
                             TextField("URL", text: .constant(""))
-                                .accessibilityIdentifier("cookyard.recipeForm.videoURL")
+                                .accessibilityIdentifier("sample.recipeForm.videoURL")
                         }
-                        .accessibilityIdentifier("cookyard.recipeForm")
+                        .accessibilityIdentifier("sample.recipeForm")
                     }
                 }
                 """,
@@ -84,25 +84,25 @@ class SkillScriptTests(unittest.TestCase):
             collisions = report["likely_parent_container_collisions"]
 
             self.assertEqual(len(collisions), 1)
-            self.assertEqual(collisions[0]["identifier"], "cookyard.recipeForm")
-            self.assertIn("cookyard.recipeForm.videoURL", collisions[0]["child_identifiers"])
+            self.assertEqual(collisions[0]["identifier"], "sample.recipeForm")
+            self.assertIn("sample.recipeForm.videoURL", collisions[0]["child_identifiers"])
 
     def test_draft_planner_context_includes_launch_and_identifier_guidance(self) -> None:
         launch_report = {
-            "environment_keys": ["COOKYARD_AUTOMATION_ROUTE"],
+            "environment_keys": ["SAMPLE_AUTOMATION_ROUTE"],
             "launch_arguments": ["-automation-add-recipe"],
-            "url_schemes": [{"scheme": "cookyard", "file": "/tmp/Info.plist"}],
+            "url_schemes": [{"scheme": "sample", "file": "/tmp/Info.plist"}],
             "route_hints": [{"file": "AppRouting.swift", "line": 12, "source": "route"}],
             "automation_hints": [],
         }
         accessibility_report = {
             "identifiers": {
-                "cookyard.recipeForm.videoURL": [],
-                "cookyard.recipes.add": [],
+                "sample.recipeForm.videoURL": [],
+                "sample.recipes.add": [],
             },
             "review_needed_dynamic": [
                 {
-                    "identifier": "cookyard.onboarding.finish",
+                    "identifier": "sample.onboarding.finish",
                     "file": "Onboarding.swift",
                     "line": 10,
                     "source": "conditional id",
@@ -116,9 +116,9 @@ class SkillScriptTests(unittest.TestCase):
             max_identifiers=8,
         )
 
-        self.assertIn("COOKYARD_AUTOMATION_ROUTE", markdown)
+        self.assertIn("SAMPLE_AUTOMATION_ROUTE", markdown)
         self.assertIn("-automation-add-recipe", markdown)
-        self.assertIn("cookyard.recipeForm.videoURL", markdown)
+        self.assertIn("sample.recipeForm.videoURL", markdown)
         self.assertIn("Review these dynamic identifiers", markdown)
 
     def test_triage_ui_contract_failure_classifies_scenario_contract(self) -> None:
@@ -126,13 +126,13 @@ class SkillScriptTests(unittest.TestCase):
             summary_text=(
                 "Planner generated a scenario that failed accessibility or conditional-state validation."
             ),
-            scenario_ids=["cookyard.paywall.cta", "cookyard.recipeForm.videoURL"],
-            ui_tree_ids={"cookyard.recipeForm.videoURL"},
-            planner_validation_error_text="unknown identifier cookyard.paywall.cta",
+            scenario_ids=["sample.paywall.cta", "sample.recipeForm.videoURL"],
+            ui_tree_ids={"sample.recipeForm.videoURL"},
+            planner_validation_error_text="unknown identifier sample.paywall.cta",
         )
 
         self.assertEqual(report["bucket"], "scenario contract")
-        self.assertIn("cookyard.paywall.cta", report["missing_scenario_ids"])
+        self.assertIn("sample.paywall.cta", report["missing_scenario_ids"])
         self.assertTrue(report["planner_validation_error_present"])
         self.assertGreaterEqual(len(report["patch_plan"]), 2)
 
@@ -203,7 +203,7 @@ class SkillScriptTests(unittest.TestCase):
                 struct RecipeView: View {
                     var body: some View {
                         TextField("URL", text: .constant(""))
-                            .accessibilityIdentifier("cookyard.recipeForm.videoURL")
+                            .accessibilityIdentifier("sample.recipeForm.videoURL")
                     }
                 }
                 """,
@@ -224,7 +224,7 @@ class SkillScriptTests(unittest.TestCase):
             )
 
             self.assertTrue(output_path.exists())
-            self.assertIn("cookyard.recipeForm.videoURL", output_path.read_text(encoding="utf-8"))
+            self.assertIn("sample.recipeForm.videoURL", output_path.read_text(encoding="utf-8"))
 
 
 if __name__ == "__main__":
