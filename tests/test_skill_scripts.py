@@ -136,6 +136,139 @@ class SkillScriptTests(unittest.TestCase):
         self.assertTrue(report["planner_validation_error_present"])
         self.assertGreaterEqual(len(report["patch_plan"]), 2)
 
+    def test_triage_extracts_structured_ui_tree_and_nested_scenario_ids(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            ui_tree = root / "ui-tree.json"
+            scenario = root / "scenario.json"
+            ui_tree.write_text(
+                """
+                {
+                  "tree": {
+                    "identifier": "sample.login",
+                    "label": "Log In",
+                    "children": [
+                      {
+                        "accessibilityIdentifier": "sample.login.email",
+                        "label": "Email"
+                      },
+                      {
+                        "identifier": "sample.login.submit",
+                        "label": "Continue"
+                      },
+                      {
+                        "identifier": "sample.login.forgotPassword",
+                        "label": "Forgot Password"
+                      },
+                      {
+                        "identifier": "sample.login.cancel",
+                        "label": "Cancel"
+                      }
+                    ]
+                  }
+                }
+                """,
+                encoding="utf-8",
+            )
+            scenario.write_text(
+                """
+                {
+                  "steps": [
+                    {
+                      "action": "type",
+                      "target": {
+                        "accessibilityIdentifier": "sample.login.email"
+                      }
+                    },
+                    {
+                      "action": "tap",
+                      "selector": {
+                        "identifier": "sample.login.submit"
+                      }
+                    },
+                    {
+                      "action": "tap",
+                      "selector": {
+                        "strategy": "accessibilityIdentifier",
+                        "value": "sample.login.forgotPassword"
+                      }
+                    },
+                    {
+                      "action": "tap",
+                      "by": "accessibilityId",
+                      "value": "sample.login.cancel"
+                    },
+                    {
+                      "action": "type",
+                      "by": "accessibilityId",
+                      "name": "sample.login.email",
+                      "value": "person@example.com"
+                    },
+                    {
+                      "action": "type",
+                      "by": "accessibilityId",
+                      "value": "sample.login.email",
+                      "text": "person@example.com"
+                    },
+                    {
+                      "action": "assert",
+                      "target": {
+                        "identifier": "sample.login.submit"
+                      },
+                      "assertion": "visible"
+                    },
+                    {
+                      "action": "assert",
+                      "assertion": {
+                        "expected": {
+                          "id": "order-123",
+                          "text": "Done"
+                        }
+                      }
+                    },
+                    {
+                      "action": "assert",
+                      "assertion": {
+                        "target": "Done"
+                      }
+                    },
+                    {
+                      "action": "type",
+                      "payload": {
+                        "selector": "person@example.com"
+                      }
+                    }
+                  ]
+                }
+                """,
+                encoding="utf-8",
+            )
+
+            self.assertEqual(
+                triage_ui_contract_failure.collect_scenario_ids(scenario),
+                [
+                    "sample.login.email",
+                    "sample.login.submit",
+                    "sample.login.forgotPassword",
+                    "sample.login.cancel",
+                ],
+            )
+            self.assertNotIn("visible", triage_ui_contract_failure.collect_scenario_ids(scenario))
+            self.assertNotIn("person@example.com", triage_ui_contract_failure.collect_scenario_ids(scenario))
+            self.assertNotIn("order-123", triage_ui_contract_failure.collect_scenario_ids(scenario))
+            self.assertNotIn("Done", triage_ui_contract_failure.collect_scenario_ids(scenario))
+            self.assertEqual(
+                triage_ui_contract_failure.collect_ui_tree_identifiers(ui_tree),
+                {
+                    "sample.login",
+                    "sample.login.cancel",
+                    "sample.login.email",
+                    "sample.login.forgotPassword",
+                    "sample.login.submit",
+                },
+            )
+            self.assertIn("Email", triage_ui_contract_failure.collect_ui_tree_labels(ui_tree))
+
     def test_triage_patch_plan_mode_uses_fixture_bundle(self) -> None:
         fixture_root = FIXTURES_DIR / "sample_failure_bundle"
 

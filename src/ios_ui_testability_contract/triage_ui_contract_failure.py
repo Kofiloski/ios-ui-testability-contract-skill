@@ -12,6 +12,7 @@ import argparse
 import json
 import re
 from pathlib import Path
+from typing import Any
 
 
 ROOT_CAUSE_BUCKETS = (
@@ -34,6 +35,59 @@ STATE_DEPENDENT_TOKENS = (
 
 UI_TREE_ID_PATTERN = re.compile(r"identifier:\s*'([^']+)'")
 UI_TREE_LABEL_PATTERN = re.compile(r"label:\s*'([^']+)'")
+UI_IDENTIFIER_KEYS = {"accessibilityid", "accessibilityidentifier", "identifier"}
+UI_LABEL_KEYS = {"label", "title"}
+SCENARIO_IDENTIFIER_KEYS = {
+    "accessibilityid",
+    "accessibilityidentifier",
+    "id",
+    "identifier",
+    "targetid",
+}
+SCENARIO_SELECTOR_CONTAINER_KEYS = {
+    "element",
+    "find",
+    "query",
+    "selector",
+    "target",
+    "waitfor",
+}
+SCENARIO_DIRECT_SELECTOR_STRING_KEYS = {
+    "element",
+    "find",
+    "query",
+    "selector",
+    "target",
+    "waitfor",
+}
+SCENARIO_SELECTOR_STRATEGY_KEYS = {"by", "kind", "strategy", "type", "using"}
+SCENARIO_SELECTOR_NAME_KEYS = {"name"}
+SCENARIO_SELECTOR_VALUE_KEYS = {"value"}
+SCENARIO_IDENTIFIER_STRATEGIES = {
+    "accessibilityid",
+    "accessibilityidentifier",
+    "id",
+    "identifier",
+}
+SCENARIO_PAYLOAD_ACTIONS = {
+    "assert",
+    "entertext",
+    "expect",
+    "input",
+    "settext",
+    "type",
+    "verify",
+}
+SCENARIO_PAYLOAD_HINT_KEYS = {
+    "assert",
+    "assertion",
+    "expected",
+    "expectedtext",
+    "input",
+    "payload",
+    "text",
+}
+SCENARIO_PAYLOAD_CONTAINER_KEYS = SCENARIO_PAYLOAD_HINT_KEYS
 
 
 def parse_args() -> argparse.Namespace:
@@ -64,7 +118,7 @@ def read_text(path: Path | None) -> str:
     return path.read_text(encoding="utf-8")
 
 
-def read_json(path: Path | None) -> dict:
+def read_json(path: Path | None) -> Any:
     if path is None or not path.exists() or path.is_dir():
         return {}
     try:
@@ -73,31 +127,141 @@ def read_json(path: Path | None) -> dict:
         return {}
 
 
+def normalized_key(value: object) -> str:
+    return re.sub(r"[^a-z0-9]", "", str(value).lower())
+
+
+def append_unique(values: list[str], value: str) -> None:
+    if value and value not in values:
+        values.append(value)
+
+
+def collect_string_values(value: Any) -> list[str]:
+    values: list[str] = []
+    if isinstance(value, str):
+        append_unique(values, value)
+    elif isinstance(value, dict):
+        for child in value.values():
+            for child_value in collect_string_values(child):
+                append_unique(values, child_value)
+    elif isinstance(value, list):
+        for child in value:
+            for child_value in collect_string_values(child):
+                append_unique(values, child_value)
+    return values
+
+
+def collect_pattern_matches(value: Any, pattern: re.Pattern[str]) -> set[str]:
+    matches: set[str] = set()
+    if isinstance(value, str):
+        matches.update(pattern.findall(value))
+    elif isinstance(value, dict):
+        for child in value.values():
+            matches.update(collect_pattern_matches(child, pattern))
+    elif isinstance(value, list):
+        for child in value:
+            matches.update(collect_pattern_matches(child, pattern))
+    return matches
+
+
+def collect_keyed_strings(value: Any, keys: set[str]) -> set[str]:
+    values: set[str] = set()
+    if isinstance(value, dict):
+        for key, child in value.items():
+            if normalized_key(key) in keys:
+                values.update(collect_string_values(child))
+            values.update(collect_keyed_strings(child, keys))
+    elif isinstance(value, list):
+        for child in value:
+            values.update(collect_keyed_strings(child, keys))
+    return {item for item in values if item}
+
+
 def collect_ui_tree_identifiers(path: Path | None) -> set[str]:
     payload = read_json(path)
-    hierarchy_description = payload.get("hierarchyDescription") or ""
-    return set(UI_TREE_ID_PATTERN.findall(hierarchy_description))
+    identifiers = collect_pattern_matches(payload, UI_TREE_ID_PATTERN)
+    identifiers.update(collect_keyed_strings(payload, UI_IDENTIFIER_KEYS))
+    return identifiers
 
 
 def collect_ui_tree_labels(path: Path | None) -> set[str]:
     payload = read_json(path)
-    hierarchy_description = payload.get("hierarchyDescription") or ""
-    return set(UI_TREE_LABEL_PATTERN.findall(hierarchy_description))
+    labels = collect_pattern_matches(payload, UI_TREE_LABEL_PATTERN)
+    labels.update(collect_keyed_strings(payload, UI_LABEL_KEYS))
+    return labels
 
 
 def collect_scenario_ids(path: Path | None) -> list[str]:
     payload = read_json(path)
-    steps = payload.get("steps")
+    steps = payload.get("steps") if isinstance(payload, dict) else payload
     if not isinstance(steps, list):
         return []
     ids: list[str] = []
     for step in steps:
-        if not isinstance(step, dict):
-            continue
-        step_id = step.get("id")
-        if isinstance(step_id, str) and step_id:
-            ids.append(step_id)
+        collect_scenario_identifiers(step, ids, top_level=True)
     return ids
+
+
+def selector_uses_identifier_strategy(value: dict[Any, Any]) -> bool:
+    for key, child in value.items():
+        if normalized_key(key) in SCENARIO_SELECTOR_STRATEGY_KEYS:
+            if isinstance(child, str) and normalized_key(child) in SCENARIO_IDENTIFIER_STRATEGIES:
+                return True
+    return False
+
+
+def selector_value_key_is_locator(value: dict[Any, Any], *, selector_context: bool) -> bool:
+    keys = {normalized_key(key) for key in value}
+    if keys & SCENARIO_SELECTOR_NAME_KEYS:
+        return False
+    if not selector_context and "value" in keys and "text" in keys:
+        return True
+    action = value.get("action")
+    if isinstance(action, str) and normalized_key(action) in SCENARIO_PAYLOAD_ACTIONS and "text" not in keys:
+        return False
+    if not selector_context and keys & SCENARIO_PAYLOAD_HINT_KEYS and "text" not in keys:
+        return False
+    return True
+
+
+def collect_scenario_identifiers(
+    value: Any,
+    ids: list[str],
+    *,
+    selector_context: bool = False,
+    top_level: bool = False,
+) -> None:
+    if isinstance(value, dict):
+        collect_direct_ids = selector_context or top_level
+        selector_value_is_identifier = collect_direct_ids and selector_uses_identifier_strategy(value)
+        for key, child in value.items():
+            key_name = normalized_key(key)
+            if collect_direct_ids and key_name in SCENARIO_IDENTIFIER_KEYS:
+                for item in collect_string_values(child):
+                    append_unique(ids, item)
+                continue
+            if selector_value_is_identifier and key_name in SCENARIO_SELECTOR_NAME_KEYS:
+                for item in collect_string_values(child):
+                    append_unique(ids, item)
+                continue
+            if selector_value_is_identifier and key_name in SCENARIO_SELECTOR_VALUE_KEYS:
+                if selector_value_key_is_locator(value, selector_context=selector_context):
+                    for item in collect_string_values(child):
+                        append_unique(ids, item)
+                continue
+            if key_name in SCENARIO_PAYLOAD_CONTAINER_KEYS:
+                continue
+            if key_name in SCENARIO_SELECTOR_CONTAINER_KEYS:
+                if isinstance(child, str):
+                    if key_name in SCENARIO_DIRECT_SELECTOR_STRING_KEYS:
+                        append_unique(ids, child)
+                else:
+                    collect_scenario_identifiers(child, ids, selector_context=True)
+                continue
+            collect_scenario_identifiers(child, ids)
+    elif isinstance(value, list):
+        for child in value:
+            collect_scenario_identifiers(child, ids, selector_context=selector_context)
 
 
 def is_state_dependent(identifier: str) -> bool:
