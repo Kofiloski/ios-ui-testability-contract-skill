@@ -1,57 +1,60 @@
 # Publishing
 
-This folder is intended to be publishable as its own repository root.
+This repository publishes an Agent Skills package, a GitHub release, and an optional Python distribution from the same versioned source.
 
-## Minimal Repository Shape
+## Repository Shape
 
-Keep these at the repo root:
+Keep these surfaces intact:
 
-- `pyproject.toml`
-- `SKILL.md`
-- `README.md`
-- `PUBLISHING.md`
-- `REMOTE_INSTALL.md`
-- `src/`
-- `references/`
-- `scripts/`
-- `tests/`
-- optional `examples/`
+- `skills/ios-ui-testability-contract/SKILL.md` and its `agents/` and `references/` directories
+- `pyproject.toml` and `src/ios_ui_testability_contract/` for the Python package
+- `scripts/` compatibility wrappers and repository checks
+- `tests/` fixtures and regression coverage
+- `.github/workflows/release.yml` for tags and GitHub releases
+- `.github/workflows/publish-pypi.yml` for secretless PyPI publishing
 
-## Pre-Publish Check
+## Pre-Publish Checks
 
 Run:
 
 ```bash
 ./scripts/check-skill.sh
-```
-
-That same check now runs automatically on every branch push and pull request through `.github/workflows/ci.yml`.
-
-## Suggested Release Flow
-
-1. commit the skill updates
-2. confirm that `pyproject.toml`, installed package metadata, and `ios_ui_testability_contract.__version__` all contain the same `X.Y.Z` version
-3. tag that exact version as `vX.Y.Z`
-4. push the tag
-5. install the skill from that repository URL in any Codex-compatible environment that supports remote skill installation
-6. if you support a moving compatibility tag, update the matching major tag (for example, `vX`) after the release tag is published
-
-The repo also ships `.github/workflows/release.yml` for the manual GitHub-side release path. It sets up Python 3.12, reruns `./scripts/check-skill.sh`, installs the package non-editably, and compares the requested tag version with both installed package metadata and the CLI/runtime version. Any mismatch fails before tagging. A successful run creates the requested semantic tag, optionally updates the matching major tag, and then creates the GitHub release notes. If a run stops after pushing the semantic tag, rerunning from the same commit resumes safely; an existing tag is accepted only when it resolves to that commit, and an existing GitHub release is left intact.
-
-To inspect the version that a release tag must use:
-
-```bash
-python -m pip install .
-python -c 'from importlib.metadata import version; print(version("ios-ui-testability-contract"))'
+gh skill publish --dry-run "$PWD/skills"
+python3 -m pip install .
 ios-ui-testability --version
 ```
 
-If those commands print `X.Y.Z`, dispatch the release workflow with `version_tag` set to exactly `vX.Y.Z`.
+The package metadata, runtime `__version__`, CLI version, release tag, and citation metadata must all agree on `X.Y.Z`.
 
-The Python package exposes the `ios-ui-testability` command. Keep `src/` as the implementation source and leave the `scripts/` files as compatibility wrappers for older docs and skill installers.
+## Configure PyPI Trusted Publishing Once
 
-## Upgrade Guidance
+The workflow intentionally contains no PyPI API token. Before the first PyPI release, create a pending Trusted Publisher at <https://pypi.org/manage/account/publishing/> with:
 
-- use a full release tag when you want deterministic installs
-- use a moving major tag such as `vX` only when you intentionally want compatible updates
-- avoid telling consumers to install from `main` once the skill is in real use
+- PyPI project: `ios-ui-testability-contract`
+- GitHub owner: `Kofiloski`
+- repository: `ios-ui-testability-contract-skill`
+- workflow: `publish-pypi.yml`
+- environment: `pypi`
+
+Create the `pypi` environment in GitHub and require maintainer approval for deployments. PyPI can create the project on the first successful publish when the pending publisher matches these values.
+
+The publish workflow separates building from publishing. Only the two-step publish job receives `id-token: write`: it downloads the verified distributions and runs `pypa/gh-action-pypi-publish@release/v1`.
+
+## Release Flow
+
+1. update the package and runtime versions plus `CITATION.cff`
+2. run the pre-publish checks
+3. commit and push the release changes to the default branch
+4. dispatch `.github/workflows/release.yml` with the exact `vX.Y.Z` tag
+5. let that workflow validate versions, create or reuse the tag, optionally update `vX`, and create the GitHub release
+6. approve the `pypi` environment deployment when the release workflow dispatches the top-level `.github/workflows/publish-pypi.yml` run
+7. verify the package page and install it into a clean environment
+
+The GitHub release flow is resumable. An existing semantic tag is accepted only when it resolves to the current commit, an existing release is left intact, and the Trusted Publishing step skips distribution files already present on PyPI. PyPI versions are immutable, so never reuse a package version after it has been uploaded.
+
+## Consumer Guidance
+
+- recommend a full release tag for deterministic agent-skill and Git installs
+- recommend `pipx install ios-ui-testability-contract` after PyPI publication
+- use a moving major tag only for consumers who intentionally accept compatible updates
+- keep `main` installs limited to evaluation of unreleased changes

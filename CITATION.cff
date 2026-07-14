@@ -1,0 +1,20 @@
+cff-version: 1.2.0
+message: "If this project helps your iOS UI automation workflow, please cite it using this metadata."
+title: "iOS UI Testability Contract"
+type: software
+authors:
+  - family-names: "Kofiloski"
+    given-names: "Kristijan"
+repository-code: "https://github.com/Kofiloski/ios-ui-testability-contract-skill"
+url: "https://github.com/Kofiloski/ios-ui-testability-contract-skill"
+license: MIT
+version: "0.4.0"
+date-released: 2026-07-14
+keywords:
+  - iOS
+  - SwiftUI
+  - UIKit
+  - XCUITest
+  - accessibility identifiers
+  - UI automation
+  - agent skills

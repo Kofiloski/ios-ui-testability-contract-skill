@@ -42,6 +42,10 @@ jobs:
         shell: bash
         run: ./scripts/check-skill.sh
 
+      - name: Validate distributable Agent Skill
+        shell: bash
+        run: gh skill publish --dry-run "${GITHUB_WORKSPACE}/skills"
+
       - name: Smoke-test installed CLI and version
         shell: bash
         run: |

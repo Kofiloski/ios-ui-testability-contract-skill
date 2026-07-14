@@ -1,0 +1,38 @@
+# iOS UI Testability Contract
+
+> An Agent Skills workflow and zero-dependency Python CLI for diagnosing iOS UI automation failures caused by missing or container-level accessibility identifiers, wrong XCUIElement types, unstable IDs, stale scenarios, and nondeterministic launch routes.
+
+The CLI performs local static inventory and artifact triage. The agent skill interprets those findings with runtime UI evidence, makes the smallest app-side repair, and verifies the exact failing path. This project is not a general accessibility-conformance audit.
+
+## Start Here
+
+- [Project overview and quick start](https://github.com/Kofiloski/ios-ui-testability-contract-skill/blob/main/README.md)
+- [Canonical agent skill](https://github.com/Kofiloski/ios-ui-testability-contract-skill/blob/main/skills/ios-ui-testability-contract/SKILL.md)
+- [Truthful container-identifier demo](https://github.com/Kofiloski/ios-ui-testability-contract-skill/blob/main/examples/container-identifier-demo.md)
+- [Python package metadata](https://github.com/Kofiloski/ios-ui-testability-contract-skill/blob/main/pyproject.toml)
+
+## Focused References
+
+- [Failure classification patterns](https://github.com/Kofiloski/ios-ui-testability-contract-skill/blob/main/skills/ios-ui-testability-contract/references/failure-patterns.md)
+- [SwiftUI and UIKit contract patterns](https://github.com/Kofiloski/ios-ui-testability-contract-skill/blob/main/skills/ios-ui-testability-contract/references/swiftui-contract-patterns.md)
+- [Required input and output artifacts](https://github.com/Kofiloski/ios-ui-testability-contract-skill/blob/main/skills/ios-ui-testability-contract/references/artifact-contract.md)
+- [Focused verification loop](https://github.com/Kofiloski/ios-ui-testability-contract-skill/blob/main/skills/ios-ui-testability-contract/references/verification-loop.md)
+
+## CLI Surface
+
+- `ios-ui-testability ids PATH`: inventory accessibility identifier risks in Swift and Objective-C source.
+- `ios-ui-testability launch PATH`: inventory deterministic launch and routing hooks.
+- `ios-ui-testability triage ...`: classify a failure bundle from its summary, UI tree, scenario, and optional planner validation error.
+- `ios-ui-testability draft-context PATH`: draft planner-context guidance from discovered identifiers and launch hooks.
+
+## Validation and Releases
+
+- [Fixture tests](https://github.com/Kofiloski/ios-ui-testability-contract-skill/tree/main/tests)
+- [Remote install and version pinning](https://github.com/Kofiloski/ios-ui-testability-contract-skill/blob/main/REMOTE_INSTALL.md)
+- [Maintainer publishing flow](https://github.com/Kofiloski/ios-ui-testability-contract-skill/blob/main/PUBLISHING.md)
+- [MIT License](https://github.com/Kofiloski/ios-ui-testability-contract-skill/blob/main/LICENSE)
+
+## Companion Projects
+
+- [ios-ai-ui-check](https://github.com/Kofiloski/ios-ai-ui-check): planned iOS Simulator UI validation and failure artifacts.
+- [app-store-review-risk](https://github.com/Kofiloski/app-store-review-risk): static App Store review-risk scanning.

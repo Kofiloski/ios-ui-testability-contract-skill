@@ -1,7 +1,7 @@
 # Failure Patterns
 
 Use this file to classify common iOS UI automation contract failures before patching code.
-If you want the helper to turn a classified failure into a short first-edit checklist, run `scripts/triage_ui_contract_failure.py --report-mode patch-plan` against the artifact bundle.
+If the separately packaged CLI is installed and you want a short first-edit checklist, run `ios-ui-testability triage --report-mode patch-plan` against the artifact bundle. Otherwise classify the same evidence manually with the patterns below.
 
 ## Missing Identifier
 

@@ -1,74 +1,126 @@
-# iOS UI Testability Contract
+# Fix XCUITest “Element Not Found” Failures in SwiftUI and UIKit
 
 [![CI](https://github.com/Kofiloski/ios-ui-testability-contract-skill/actions/workflows/ci.yml/badge.svg)](https://github.com/Kofiloski/ios-ui-testability-contract-skill/actions/workflows/ci.yml)
+[![GitHub release](https://img.shields.io/github/v/release/Kofiloski/ios-ui-testability-contract-skill)](https://github.com/Kofiloski/ios-ui-testability-contract-skill/releases/latest)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-3776AB)](pyproject.toml)
+[![MIT license](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
-A focused agent skill for diagnosing and fixing iOS UI automation contract failures in SwiftUI and UIKit.
+Turn XCUITest’s “element not found,” wrong-element, and flaky-navigation failures into the smallest SwiftUI/UIKit accessibility or launch-route fix with a local zero-dependency scanner and an installable agent skill.
 
-This skill is for cases where `XCUITest`, `AXe`, or `ios-ai-ui-check` cannot find the intended element, resolves the wrong element, or cannot reach a screen deterministically even though the product UI itself appears correct.
+**Local by default:** the CLI reads Swift, Objective-C, plist, and explicitly supplied failure artifacts from disk. It has no runtime dependencies, makes no network requests, does not upload source code, and fails closed on missing or malformed inputs.
 
-## Agent Usage
+## See the Problem in 60 Seconds
 
-Use this skill when an AI agent needs to repair the app-side testability contract for an iOS UI automation failure, especially missing or duplicate `accessibilityIdentifier` values, wrong `XCUIElement` types, container collisions, unstable identifiers, unreachable screens, or incomplete launch routing.
+This view puts an identifier on a container while the test needs the nested `TextField`:
 
-Prompt examples:
+```swift
+VStack {
+    Text("Add Recipe")
+    TextField("Video URL", text: $url)
+        .textFieldStyle(.roundedBorder)
+}
+.accessibilityIdentifier("sample.recipeForm")
+```
+
+Run the scanner against the checked-in example:
+
+```bash
+ios-ui-testability ids examples/broken-swiftui-contract
+```
+
+It reports the concrete risk:
+
+```text
+Identifiers: 1
+Likely parent-container assignments: 1
+
+Likely parent-container assignments
+  RecipeFormView.swift:12  sample.recipeForm
+```
+
+The smallest safe contract change is to identify the interactive control itself:
+
+```swift
+VStack {
+    Text("Add Recipe")
+    TextField("Video URL", text: $url)
+        .textFieldStyle(.roundedBorder)
+        .accessibilityIdentifier("sample.recipeForm.videoURL")
+}
+```
+
+That static finding is evidence to inspect the runtime accessibility tree, not a claim that the test is already fixed. The skill then checks the resolved `XCUIElement` type and reruns the exact failing path. See the [captured demo and its limits](examples/container-identifier-demo.md).
+
+## Copy-Paste Quick Start
+
+Install the CLI from the latest published package release and scan an iOS repository:
+
+```bash
+pipx install "git+https://github.com/Kofiloski/ios-ui-testability-contract-skill.git@v0.4.0"
+ios-ui-testability ids /path/to/your-ios-repo
+```
+
+Install the agent skill for Codex at user scope from the immutable release:
+
+```bash
+gh skill install Kofiloski/ios-ui-testability-contract-skill \
+  ios-ui-testability-contract@v0.4.0 \
+  --agent codex \
+  --scope user
+```
+
+Then give the agent the actual failure evidence:
+
+```text
+Use $ios-ui-testability-contract to diagnose why XCUITest cannot find
+app.recipeForm.videoURL. Inspect the failure log and UI tree, patch the
+smallest app-side contract issue, and rerun the focused test.
+```
+
+The skill follows the open Agent Skills layout under [`skills/ios-ui-testability-contract/`](skills/ios-ui-testability-contract/). GitHub CLI can also install it for other supported coding agents; keep the requested agent and scope explicit. A root `SKILL.md` compatibility entry point remains for older direct-clone installations, while new installs should use the nested package.
+
+## Problems It Is Built to Fix
+
+- a control is visible but XCUITest reports that it does not exist
+- an identifier resolves to `Other` or `StaticText` instead of the expected `Button` or `TextField`
+- an identifier on a `VStack`, row, card, or other container collides with or hides child controls
+- identifiers are duplicated, generated from unstable data, or stale in a checked-in scenario
+- onboarding, seeded state, modal order, or navigation makes a screen unreachable deterministically
+- a UI assertion is really waiting on an uncontrolled backend or network result
+
+It is not a general VoiceOver, Dynamic Type, or accessibility-conformance audit. It repairs the app-side automation surface used by XCUITest, AXe, `ios-ai-ui-check`, and other clients built on the iOS accessibility tree.
+
+## Agent Workflow
+
+The installed skill tells an agent to:
+
+1. inspect the decisive test log, screenshot or recording, UI tree, scenario, and source view
+2. classify the failure as app contract, scenario contract, launch determinism, backend dependency, or mixed cause
+3. patch the smallest app-side accessibility or routing surface
+4. update checked-in scenarios or planner context when their contract changed
+5. prove the target resolves as the intended element type and replay the exact failing path
+
+Example prompts:
 
 - `Use $ios-ui-testability-contract to diagnose why XCUITest cannot find app.recipeForm.videoURL and patch the app-side contract.`
 - `Use $ios-ui-testability-contract to inspect this failing ios-ai-ui-check artifact bundle and fix the app-side automation surface.`
-- `Use $ios-ui-testability-contract to make this SwiftUI sheet reachable and testable through deterministic launch state.`
+- `Use $ios-ui-testability-contract to make this SwiftUI sheet reachable through deterministic launch state.`
 - `Use $ios-ui-testability-contract to inspect this artifact bundle and give me a patch plan before editing code.`
 
-Agents should read `SKILL.md` first, inspect the failure artifact or UI tree before editing prompts, and load `references/` only for the failure pattern being fixed.
+The canonical instructions are in [`SKILL.md`](skills/ios-ui-testability-contract/SKILL.md). References are loaded only for the failure pattern being handled.
 
-## What It Does
+## CLI Commands
 
-- inspects failing UI automation artifacts before touching prompts
-- classifies failures like missing identifiers, container collisions, wrong element types, unstable IDs, and nondeterministic launch paths
-- patches the smallest app-side automation contract needed
-- updates checked-in scenario or planner context when the contract changes
-- verifies the fix with an inspect pass and one focused replay
+The Python package exposes one `ios-ui-testability` command with four focused subcommands:
 
-## What It Does Not Do
+| Command | Purpose |
+| --- | --- |
+| `ids PATH` | Inventory literal identifiers, duplicates, dynamic assignments, and likely parent-container risks in Swift and Objective-C. |
+| `launch PATH` | Inventory launch arguments, automation environment keys, URL schemes, and likely deterministic route hooks. |
+| `triage ...` | Compare a failure summary, UI tree, scenario, and optional planner validation error to classify the likely root cause. |
+| `draft-context PATH` | Draft planner-context guidance from discovered launch hooks and stable identifiers. |
 
-- general accessibility compliance review
-- VoiceOver or Dynamic Type audits
-- visual UI redesign
-- backend mocking or full end-to-end workflow design unless needed to make the screen deterministic
-
-## Install
-
-For the reusable CLI:
-
-```bash
-python -m pip install .
-ios-ui-testability --help
-```
-
-For Codex-style skills, copy or symlink this folder into your skills directory:
-
-```bash
-git clone https://github.com/Kofiloski/ios-ui-testability-contract-skill.git \
-  "${CODEX_HOME:-$HOME/.codex}/skills/ios-ui-testability-contract"
-```
-
-This folder is structured as a standalone skill repository. Keep `SKILL.md`, `README.md`, `references/`, `scripts/`, and `tests/` together and tag releases from that root.
-See [PUBLISHING.md](PUBLISHING.md) for the minimal standalone-repo release flow.
-See [REMOTE_INSTALL.md](REMOTE_INSTALL.md) for the remote-repo install contract and pinning guidance.
-This standalone-repo shape now also includes an MIT `LICENSE` plus GitHub Actions workflows for CI and manual releases.
-
-Before publishing or updating the standalone repo, run:
-
-```bash
-./scripts/check-skill.sh
-```
-
-The same skill check now runs automatically on every branch push and pull request through `.github/workflows/ci.yml`.
-CI installs a wheel-backed copy of the package on Python 3.10, 3.12, and 3.13, then verifies that package metadata, the runtime, and `ios-ui-testability --version` agree.
-
-Release tags must be the package version prefixed with `v`. For example, package version `X.Y.Z` must be released as tag `vX.Y.Z`; the release workflow rejects any mismatch before it creates or pushes a tag.
-
-## Example Helper Usage
-
-Patch-plan mode from the sample fixture bundle:
+Triage the included artifact bundle:
 
 ```bash
 ios-ui-testability triage \
@@ -79,7 +131,7 @@ ios-ui-testability triage \
   --report-mode full
 ```
 
-Example output excerpt:
+Example excerpt:
 
 ```text
 Bucket: scenario contract
@@ -90,56 +142,40 @@ Patch plan:
 - Prefer stable app-side identifiers such as sample.recipeForm.submit for replayable controls.
 ```
 
-The old script paths remain available for compatibility:
+Repository inventories use root-relative paths, do not follow symbolic links, and report skipped links. Launch inventories also report unreadable or malformed plist files. Commented code and code-like examples inside Swift raw or multiline strings are excluded from identifier findings.
+
+## Install and Versioning
+
+The CLI package and the agent skill are related but independent:
+
+- install the CLI when you want deterministic local inventory and triage commands
+- install the skill when you want an agent to interpret evidence, edit the app, and verify the repair
+- install both for the shortest end-to-end workflow
+
+For a source checkout:
 
 ```bash
-python3 scripts/triage_ui_contract_failure.py --help
+python3 -m pip install .
+ios-ui-testability --help
 ```
 
-CLI subcommands:
+Published tags match the Python package version exactly: package version `X.Y.Z` is tagged `vX.Y.Z`. Prefer an exact tag when reproducibility matters. See [REMOTE_INSTALL.md](REMOTE_INSTALL.md) for install details and [PUBLISHING.md](PUBLISHING.md) for the maintainer release flow.
 
-- `ios-ui-testability ids`
-  Inventory live literal accessibility identifiers, duplicates, likely dynamic assignments, and likely parent-container collisions. Commented code and code-like examples inside Swift raw or multiline strings are excluded.
-- `ios-ui-testability launch`
-  Inventory launch arguments, automation environment keys, URL schemes, and route hints.
-- `ios-ui-testability triage`
-  Classify an artifact bundle into a likely root-cause bucket and optional patch plan, comparing both explicit identifiers and labels with the UI tree.
-- `ios-ui-testability draft-context`
-  Draft `.github/ai-ui/planner-context.md` guidance from discovered launch hooks and stable identifiers.
+## Companion iOS Quality Projects
 
-Scan roots and explicitly supplied triage artifacts are validated. Missing or malformed inputs return a nonzero status instead of an empty success report. Repository inventories use root-relative paths and do not follow symbolic links; skipped links are listed in the report and in generated planner-context scan notes. Launch inventories also report unreadable or malformed plist files so an incomplete URL-scheme scan is visible.
+- [`ios-ai-ui-check`](https://github.com/Kofiloski/ios-ai-ui-check) runs planned iOS Simulator UI scenarios and produces the artifacts this skill can diagnose.
+- [`app-store-review-risk`](https://github.com/Kofiloski/app-store-review-risk) scans iOS projects for App Store review risks before submission.
 
-## Repository Contents
+Together they cover runtime UI validation, app-side testability repair, and release-policy risk without coupling application code to one automation provider.
 
-- `pyproject.toml`
-  Python package metadata and the `ios-ui-testability` console command.
-- `src/ios_ui_testability_contract/`
-  The reusable CLI and helper implementation.
-- `SKILL.md`
-  The actual skill instructions and workflow.
-- `references/`
-  Failure patterns, SwiftUI/UIKit contract patterns, artifact expectations, and the verification loop.
-- `scripts/inventory_accessibility_ids.py`
-  A lightweight helper for inventorying literal accessibility identifiers, duplicate literals, and likely non-literal assignments.
-- `scripts/inventory_launch_contract.py`
-  A lightweight helper for surfacing launch arguments, automation environment keys, URL schemes, and route hints.
-- `scripts/triage_ui_contract_failure.py`
-  A first-pass triage helper that turns `summary.md`, a scenario file, a UI tree, and optional `planner-validation-error.txt` into a likely root-cause bucket. It can also emit a short fix-oriented patch plan.
-- `scripts/draft_planner_context.py`
-  A starter generator for planner-context sections based on discovered launch hooks, route hints, and stable identifiers. It can print to stdout or write directly to a target file with `--output`.
-- `scripts/check-skill.sh`
-  A tiny self-check runner for `compileall` plus the fixture tests, useful when the skill is published as its own repo.
-- `tests/`
-  Tiny fixture-style tests for the helper scripts so the skill can be evolved with less guesswork.
-- `examples/`
-  Small sample broken-contract source files you can use to understand the kinds of app-side issues this skill is meant to fix.
-- `tests/fixtures/sample_failure_bundle/`
-  A tiny example artifact bundle you can use to exercise the triage helper and inspect the expected inputs.
+## Development
 
-## Suggested Workflow
+Run the complete local check:
 
-1. Start from the failing artifact, screenshot, log, or local repro.
-2. Confirm whether the issue is app contract, scenario contract, launch determinism, or a non-UI dependency.
-3. Patch the smallest app-side surface that fixes the contract.
-4. Update checked-in automation artifacts if the contract changed.
-5. Verify with inspect plus one focused replay.
+```bash
+./scripts/check-skill.sh
+```
+
+CI installs the wheel-backed package on Python 3.10, 3.12, and 3.13, then checks package, runtime, and CLI version agreement. The repository also validates the distributable Agent Skills layout with GitHub CLI before release work.
+
+Machine-readable project navigation is available in [`llms.txt`](llms.txt). Citation metadata is in [`CITATION.cff`](CITATION.cff). The project is available under the [MIT License](LICENSE).

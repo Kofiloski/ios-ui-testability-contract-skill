@@ -1,14 +1,15 @@
 [build-system]
-requires = ["setuptools>=69"]
+requires = ["setuptools>=77.0.3"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "ios-ui-testability-contract"
-version = "0.3.0"
-description = "CLI tools and Codex skill for diagnosing iOS UI automation contract failures."
+version = "0.4.0"
+description = "Local CLI and Agent Skill for diagnosing XCUITest element lookup and deterministic launch failures in SwiftUI and UIKit."
 readme = "README.md"
 requires-python = ">=3.10"
-license = { file = "LICENSE" }
+license = "MIT"
+license-files = ["LICENSE"]
 authors = [
   { name = "Kristijan Kofiloski" }
 ]
@@ -23,16 +24,17 @@ keywords = [
   "ios-ai-ui-check",
   "ios-testing",
   "swiftui",
+  "test-automation",
   "ui-testing",
   "uikit",
   "xcuitest",
-  "xcode"
+  "xcode",
+  "xcode-ui-testing"
 ]
 classifiers = [
   "Development Status :: 3 - Alpha",
   "Environment :: Console",
   "Intended Audience :: Developers",
-  "License :: OSI Approved :: MIT License",
   "Programming Language :: Python :: 3",
   "Programming Language :: Python :: 3 :: Only",
   "Topic :: Software Development :: Testing"
@@ -42,6 +44,9 @@ dependencies = []
 [project.urls]
 Homepage = "https://github.com/Kofiloski/ios-ui-testability-contract-skill"
 Repository = "https://github.com/Kofiloski/ios-ui-testability-contract-skill"
+Documentation = "https://github.com/Kofiloski/ios-ui-testability-contract-skill#readme"
+Issues = "https://github.com/Kofiloski/ios-ui-testability-contract-skill/issues"
+Changelog = "https://github.com/Kofiloski/ios-ui-testability-contract-skill/releases"
 
 [project.scripts]
 ios-ui-testability = "ios_ui_testability_contract.cli:main"

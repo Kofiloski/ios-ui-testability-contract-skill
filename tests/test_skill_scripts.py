@@ -40,6 +40,85 @@ class SkillScriptTests(unittest.TestCase):
         self.assertIsNotNone(match)
         self.assertEqual(match.group(1), __version__)
 
+        citation = (ROOT_DIR / "CITATION.cff").read_text(encoding="utf-8")
+        citation_match = re.search(
+            r'^version:\s*["\']?([^"\'\s]+)["\']?\s*$',
+            citation,
+            re.MULTILINE,
+        )
+        self.assertIsNotNone(citation_match)
+        self.assertEqual(citation_match.group(1), __version__)
+
+        citation_reader = subprocess.run(
+            [sys.executable, str(SCRIPTS_DIR / "read-citation-version.py")],
+            cwd=ROOT_DIR,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(citation_reader.stdout.strip(), __version__)
+
+    def test_pep_639_metadata_requires_a_compatible_setuptools(self) -> None:
+        pyproject = (ROOT_DIR / "pyproject.toml").read_text(encoding="utf-8")
+
+        self.assertIn('requires = ["setuptools>=77.0.3"]', pyproject)
+        self.assertIn('license = "MIT"', pyproject)
+        self.assertIn('license-files = ["LICENSE"]', pyproject)
+
+    def test_release_flow_dispatches_sha_pinned_oidc_publish_workflow(self) -> None:
+        publish_workflow = (
+            ROOT_DIR / ".github" / "workflows" / "publish-pypi.yml"
+        ).read_text(encoding="utf-8")
+        release_workflow = (
+            ROOT_DIR / ".github" / "workflows" / "release.yml"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn("workflow_dispatch:", publish_workflow)
+        self.assertNotIn("workflow_call:", publish_workflow)
+        self.assertIn("id-token: write", publish_workflow)
+        self.assertRegex(
+            publish_workflow,
+            r"pypa/gh-action-pypi-publish@[0-9a-f]{40} # release/v1",
+        )
+        self.assertIn("skip-existing: true", publish_workflow)
+        self.assertIn(
+            "python scripts/read-citation-version.py",
+            publish_workflow,
+        )
+        self.assertIn(
+            "python scripts/read-citation-version.py",
+            release_workflow,
+        )
+        self.assertIn("actions: write", release_workflow)
+        self.assertIn("gh workflow run publish-pypi.yml", release_workflow)
+        self.assertIn('--field release_tag="${VERSION_TAG}"', release_workflow)
+
+    def test_canonical_agent_skill_uses_portable_frontmatter(self) -> None:
+        skill_dir = ROOT_DIR / "skills" / "ios-ui-testability-contract"
+        skill_text = (skill_dir / "SKILL.md").read_text(encoding="utf-8")
+        frontmatter_match = re.match(r"\A---\n(.*?)\n---\n", skill_text, re.DOTALL)
+
+        self.assertIsNotNone(frontmatter_match)
+        frontmatter_keys = {
+            line.split(":", 1)[0].strip()
+            for line in frontmatter_match.group(1).splitlines()
+            if line.strip()
+        }
+        self.assertEqual(frontmatter_keys, {"name", "description"})
+        self.assertIn("name: ios-ui-testability-contract", skill_text)
+        self.assertTrue((skill_dir / "agents" / "openai.yaml").is_file())
+        self.assertTrue((skill_dir / "references" / "failure-patterns.md").is_file())
+
+    def test_root_skill_preserves_legacy_direct_clone_installations(self) -> None:
+        root_skill = (ROOT_DIR / "SKILL.md").read_text(encoding="utf-8")
+
+        self.assertIn("name: ios-ui-testability-contract", root_skill)
+        self.assertIn(
+            "skills/ios-ui-testability-contract/SKILL.md",
+            root_skill,
+        )
+        self.assertTrue((ROOT_DIR / "agents" / "openai.yaml").is_file())
+
     def test_inventory_accessibility_ids_grades_dynamic_assignments(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo_root = Path(tmp)

@@ -1,3 +1,3 @@
 """Reusable helpers for the iOS UI Testability Contract skill."""
 
-__version__ = "0.3.0"
+__version__ = "0.4.0"

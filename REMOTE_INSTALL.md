@@ -1,49 +1,63 @@
 # Remote Install
 
-Use this when you publish `ios-ui-testability-contract` as its own Git repository and want other people to consume it without copying files manually.
+The repository publishes two related surfaces:
 
-## Repository Contract
+- an Agent Skills package at `skills/ios-ui-testability-contract/`
+- a Python package that exposes the optional `ios-ui-testability` CLI
 
-The repository root should contain:
+The skill can diagnose and repair a UI automation contract without the CLI. Install both when you want deterministic inventory and artifact-triage commands alongside the agent workflow.
 
-- `pyproject.toml`
-- `SKILL.md`
-- `README.md`
-- `REMOTE_INSTALL.md`
-- `PUBLISHING.md`
-- `src/`
-- `references/`
-- `scripts/`
-- `tests/`
-- optional `examples/`
+## Install the Agent Skill
 
-Point your remote skill installer at the repository root, not a nested subfolder.
+GitHub CLI discovers the canonical skill directory and can install it for supported coding agents. Pin an exact release for reproducibility:
 
-The same repository can also be installed as a Python package to expose the `ios-ui-testability` CLI. The CLI is a helper surface; the skill workflow remains the source of judgment for deciding what code or scenario changes to make.
+```bash
+gh skill install Kofiloski/ios-ui-testability-contract-skill \
+  ios-ui-testability-contract@vX.Y.Z \
+  --agent codex \
+  --scope user
+```
+
+Replace `vX.Y.Z` with an available release that contains the `skills/ios-ui-testability-contract/` layout. Use `--scope project` when the skill should be checked into or available only from one repository.
+
+Preview the same version before installing:
+
+```bash
+gh skill preview Kofiloski/ios-ui-testability-contract-skill \
+  ios-ui-testability-contract@vX.Y.Z
+```
+
+GitHub CLI injects source-tracking metadata into the installed copy so `gh skill update` can detect new releases. The canonical checked-in `SKILL.md` intentionally contains only the portable `name` and `description` frontmatter fields.
+
+## Install the CLI
+
+Until the package is available from PyPI, install its exact Git tag with `pipx`:
+
+```bash
+pipx install "git+https://github.com/Kofiloski/ios-ui-testability-contract-skill.git@vX.Y.Z"
+ios-ui-testability --version
+```
+
+Once a release has been published to PyPI through Trusted Publishing, the shorter install is:
+
+```bash
+pipx install ios-ui-testability-contract
+```
 
 ## Versioning
 
-Recommend one of these pins:
+- package version `X.Y.Z` is released as Git tag `vX.Y.Z`
+- exact tags are recommended for deterministic installs
+- moving major tags such as `vX` are for consumers who explicitly accept compatible updates
+- avoid installing from `main` outside evaluation or pre-release testing
 
-- exact release tag `vX.Y.Z`, where `X.Y.Z` exactly matches the published Python package version
-- moving major tag such as `vX`
+## Maintainer Validation
 
-Avoid telling consumers to install from `main` once the skill is used outside local experiments.
-Prefer the exact release tag for reproducible installs. The moving major tag is only appropriate when consumers explicitly accept compatible updates without changing their pin.
+From the repository root, validate both surfaces before publishing:
 
-## Suggested Consumer Flow
+```bash
+./scripts/check-skill.sh
+gh skill publish --dry-run "$PWD/skills"
+```
 
-1. install the skill from the repository root at a release tag
-2. run the skill against a local artifact bundle or failing repo
-3. upgrade by moving the pinned tag only after rerunning the sample checks or one local smoke repro
-
-## Suggested Maintainer Flow
-
-1. run `./scripts/check-skill.sh`
-2. confirm that installed package metadata and `ios-ui-testability --version` both report the same `X.Y.Z` version
-3. commit the change
-4. tag exactly `vX.Y.Z`
-5. optionally move the matching major tag `vX`
-6. tell consumers to update their pin, not to reinstall from `main`
-
-The manual release workflow enforces this package/tag match before creating or pushing either tag.
+The Python package remains the implementation source for the CLI. The skill directory contains portable instructions and references, so a GitHub skill install does not require copying the package source tree.
