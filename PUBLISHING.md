@@ -2,6 +2,15 @@
 
 This repository publishes an Agent Skills package, a GitHub release, and an optional Python distribution from the same versioned source.
 
+## Distribution Channels
+
+The GitHub release and PyPI publication serve different consumers:
+
+- the Git tag and GitHub release distribute the Agent Skill and provide immutable source installs for both the skill and CLI
+- PyPI distributes only the optional `ios-ui-testability` CLI for `pipx install ios-ui-testability-contract`
+
+Every version receives a GitHub release. PyPI publishing is an additional CI job because OpenID Connect Trusted Publishing must obtain a short-lived identity from GitHub Actions; it is not a separate agent-skill release.
+
 ## Repository Shape
 
 Keep these surfaces intact:
@@ -50,7 +59,19 @@ The publish workflow separates building from publishing. Only the two-step publi
 6. approve the `pypi` environment deployment when the release workflow dispatches the top-level `.github/workflows/publish-pypi.yml` run
 7. verify the package page and install it into a clean environment
 
+The release workflow dispatches the PyPI workflow from the repository's current default branch while passing the immutable release tag as `release_tag`. This keeps the publishing machinery current without changing the source being packaged: the build job still checks out the tag and verifies its package, runtime, CLI, and citation versions against that tag.
+
 The GitHub release flow is resumable. An existing semantic tag is accepted only when it resolves to the current commit, an existing release is left intact, and the Trusted Publishing step skips distribution files already present on PyPI. PyPI versions are immutable, so never reuse a package version after it has been uploaded.
+
+To retry PyPI publication for an existing release with the latest safe workflow definition, dispatch from the default branch and pass the exact tag:
+
+```bash
+gh workflow run publish-pypi.yml \
+  --ref main \
+  --field release_tag=v0.4.0
+```
+
+The workflow checks out `v0.4.0`; `--ref main` selects only the workflow definition. Replace both values as appropriate if the default branch or release changes.
 
 ## Consumer Guidance
 

@@ -13,6 +13,22 @@ ROOT_DIR = Path(__file__).resolve().parents[1]
 SCRIPTS_DIR = ROOT_DIR / "scripts"
 SRC_DIR = ROOT_DIR / "src"
 FIXTURES_DIR = Path(__file__).resolve().parent / "fixtures"
+MINIMUM_NODE24_ACTION_MAJORS = {
+    "actions/checkout": 5,
+    "actions/setup-python": 6,
+    "actions/upload-artifact": 6,
+    "actions/download-artifact": 7,
+}
+ACTION_REFERENCE = re.compile(
+    r"^[ \t]*(?:-[ \t]*)?(?:uses|['\"]uses['\"]):[ \t]*['\"]?"
+    r"(?P<action>actions/[a-z0-9_-]+)@(?P<ref>[^'\"\s#]+)",
+    re.IGNORECASE | re.MULTILINE,
+)
+ACTION_MAJOR_REF = re.compile(r"v(?P<major>\d+)(?:\.\d+){0,2}\Z", re.IGNORECASE)
+BLOCK_SCALAR_START = re.compile(
+    r"^[ ]*(?:-[ ]*)?(?:[A-Za-z0-9_-]+|['\"][^'\"]+['\"]):"
+    r"[ ]*[|>][0-9+-]*[ ]*(?:#.*)?$"
+)
 sys.path.insert(0, str(SCRIPTS_DIR))
 
 import draft_planner_context  # noqa: E402
@@ -20,6 +36,41 @@ import inventory_accessibility_ids  # noqa: E402
 import inventory_launch_contract  # noqa: E402
 import triage_ui_contract_failure  # noqa: E402
 from ios_ui_testability_contract import __version__  # noqa: E402
+
+
+def action_references(text: str):
+    block_parent_indent: int | None = None
+    for line in text.splitlines():
+        stripped = line.strip()
+        indent = len(line) - len(line.lstrip(" "))
+
+        if block_parent_indent is not None:
+            if not stripped or indent > block_parent_indent:
+                continue
+            block_parent_indent = None
+
+        if BLOCK_SCALAR_START.match(line):
+            block_parent_indent = indent
+            continue
+
+        match = ACTION_REFERENCE.match(line)
+        if match:
+            yield match
+
+
+def reviewed_node24_major(action: str, ref: str) -> int:
+    minimum = MINIMUM_NODE24_ACTION_MAJORS.get(action)
+    if minimum is None:
+        raise ValueError(f"{action} has no reviewed Node 24 minimum")
+    version = ACTION_MAJOR_REF.fullmatch(ref)
+    if version is None:
+        raise ValueError(f"{action}@{ref} requires explicit Node 24 review")
+    major = int(version.group("major"))
+    if major < minimum:
+        raise ValueError(
+            f"{action}@{ref} requires at least v{minimum} for Node 24"
+        )
+    return major
 
 
 class SkillScriptTests(unittest.TestCase):
@@ -76,6 +127,10 @@ class SkillScriptTests(unittest.TestCase):
         self.assertIn("workflow_dispatch:", publish_workflow)
         self.assertNotIn("workflow_call:", publish_workflow)
         self.assertIn("id-token: write", publish_workflow)
+        self.assertIn(
+            "ref: ${{ inputs.release_tag || github.event.release.tag_name }}",
+            publish_workflow,
+        )
         self.assertRegex(
             publish_workflow,
             r"pypa/gh-action-pypi-publish@[0-9a-f]{40} # release/v1",
@@ -91,7 +146,54 @@ class SkillScriptTests(unittest.TestCase):
         )
         self.assertIn("actions: write", release_workflow)
         self.assertIn("gh workflow run publish-pypi.yml", release_workflow)
+        self.assertIn(
+            "PUBLISH_WORKFLOW_REF: ${{ github.event.repository.default_branch }}",
+            release_workflow,
+        )
+        self.assertIn('--ref "${PUBLISH_WORKFLOW_REF}"', release_workflow)
         self.assertIn('--field release_tag="${VERSION_TAG}"', release_workflow)
+
+    def test_workflows_use_node24_action_generations(self) -> None:
+        workflows_dir = ROOT_DIR / ".github" / "workflows"
+        workflows = "\n".join(
+            workflow.read_text(encoding="utf-8")
+            for workflow in sorted(workflows_dir.glob("*.y*ml"))
+        )
+
+        checked_references = 0
+        for match in action_references(workflows):
+            action = match.group("action").lower()
+            checked_references += 1
+            reviewed_node24_major(action, match.group("ref"))
+
+        self.assertGreater(checked_references, 0)
+        self.assertIsNone(
+            ACTION_REFERENCE.search("# migrated from uses: actions/setup-python@v5")
+        )
+        self.assertEqual(
+            [
+                match.group("ref")
+                for match in action_references(
+                    "run: |\n  uses: actions/setup-python@v5\n"
+                    "- uses: actions/setup-python@v6\n"
+                )
+            ],
+            ["v6"],
+        )
+        self.assertEqual(
+            [
+                match.group("ref")
+                for match in action_references(
+                    '- "uses": actions/setup-python@v5\n'
+                )
+            ],
+            ["v5"],
+        )
+        with self.assertRaisesRegex(ValueError, "requires explicit Node 24 review"):
+            reviewed_node24_major("actions/setup-python", "a" * 40)
+        self.assertIn("actions/setup-python@v6", workflows)
+        self.assertIn("actions/upload-artifact@v6", workflows)
+        self.assertIn("actions/download-artifact@v7", workflows)
 
     def test_canonical_agent_skill_uses_portable_frontmatter(self) -> None:
         skill_dir = ROOT_DIR / "skills" / "ios-ui-testability-contract"
