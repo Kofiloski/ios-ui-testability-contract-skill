@@ -25,10 +25,11 @@ The same repository can also be installed as a Python package to expose the `ios
 
 Recommend one of these pins:
 
-- exact release tag such as `v0.1.0`
-- moving major tag such as `v0`
+- exact release tag `vX.Y.Z`, where `X.Y.Z` exactly matches the published Python package version
+- moving major tag such as `vX`
 
 Avoid telling consumers to install from `main` once the skill is used outside local experiments.
+Prefer the exact release tag for reproducible installs. The moving major tag is only appropriate when consumers explicitly accept compatible updates without changing their pin.
 
 ## Suggested Consumer Flow
 
@@ -39,7 +40,10 @@ Avoid telling consumers to install from `main` once the skill is used outside lo
 ## Suggested Maintainer Flow
 
 1. run `./scripts/check-skill.sh`
-2. commit the change
-3. tag a release
-4. optionally move a major tag such as `v0`
-5. tell consumers to update their pin, not to reinstall from `main`
+2. confirm that installed package metadata and `ios-ui-testability --version` both report the same `X.Y.Z` version
+3. commit the change
+4. tag exactly `vX.Y.Z`
+5. optionally move the matching major tag `vX`
+6. tell consumers to update their pin, not to reinstall from `main`
+
+The manual release workflow enforces this package/tag match before creating or pushing either tag.

@@ -62,6 +62,9 @@ Before publishing or updating the standalone repo, run:
 ```
 
 The same skill check now runs automatically on every branch push and pull request through `.github/workflows/ci.yml`.
+CI installs a wheel-backed copy of the package on Python 3.10, 3.12, and 3.13, then verifies that package metadata, the runtime, and `ios-ui-testability --version` agree.
+
+Release tags must be the package version prefixed with `v`. For example, package version `X.Y.Z` must be released as tag `vX.Y.Z`; the release workflow rejects any mismatch before it creates or pushes a tag.
 
 ## Example Helper Usage
 
@@ -96,13 +99,15 @@ python3 scripts/triage_ui_contract_failure.py --help
 CLI subcommands:
 
 - `ios-ui-testability ids`
-  Inventory literal accessibility identifiers, duplicates, likely dynamic assignments, and likely parent-container collisions.
+  Inventory live literal accessibility identifiers, duplicates, likely dynamic assignments, and likely parent-container collisions. Commented code and code-like examples inside Swift raw or multiline strings are excluded.
 - `ios-ui-testability launch`
   Inventory launch arguments, automation environment keys, URL schemes, and route hints.
 - `ios-ui-testability triage`
-  Classify an artifact bundle into a likely root-cause bucket and optional patch plan.
+  Classify an artifact bundle into a likely root-cause bucket and optional patch plan, comparing both explicit identifiers and labels with the UI tree.
 - `ios-ui-testability draft-context`
   Draft `.github/ai-ui/planner-context.md` guidance from discovered launch hooks and stable identifiers.
+
+Scan roots and explicitly supplied triage artifacts are validated. Missing or malformed inputs return a nonzero status instead of an empty success report. Repository inventories use root-relative paths and do not follow symbolic links; skipped links are listed in the report and in generated planner-context scan notes. Launch inventories also report unreadable or malformed plist files so an incomplete URL-scheme scan is visible.
 
 ## Repository Contents
 

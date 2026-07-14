@@ -14,6 +14,7 @@ Gather these before changing code:
 - source view and nearby launch-routing code
 
 If some artifacts are missing, say so explicitly instead of guessing.
+The `triage` helper fails closed when an explicitly supplied artifact is missing, unreadable, or malformed. Fix the artifact path or payload instead of interpreting an empty-evidence report.
 
 ## Expected Outputs
 

@@ -11,8 +11,11 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import sys
 from pathlib import Path
 from typing import Any
+
+from ._paths import read_required_text
 
 
 ROOT_CAUSE_BUCKETS = (
@@ -44,6 +47,7 @@ SCENARIO_IDENTIFIER_KEYS = {
     "identifier",
     "targetid",
 }
+SCENARIO_LABEL_KEYS = {"accessibilitylabel", "label"}
 SCENARIO_SELECTOR_CONTAINER_KEYS = {
     "element",
     "find",
@@ -69,15 +73,7 @@ SCENARIO_IDENTIFIER_STRATEGIES = {
     "id",
     "identifier",
 }
-SCENARIO_PAYLOAD_ACTIONS = {
-    "assert",
-    "entertext",
-    "expect",
-    "input",
-    "settext",
-    "type",
-    "verify",
-}
+SCENARIO_LABEL_STRATEGIES = {"accessibilitylabel", "label"}
 SCENARIO_PAYLOAD_HINT_KEYS = {
     "assert",
     "assertion",
@@ -112,19 +108,27 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def read_text(path: Path | None) -> str:
-    if path is None or not path.exists() or path.is_dir():
+def read_text(
+    path: Path | None,
+    *,
+    label: str = "text artifact",
+    allow_empty: bool = True,
+) -> str:
+    if path is None:
         return ""
-    return path.read_text(encoding="utf-8")
+    return read_required_text(path, label=label, allow_empty=allow_empty)
 
 
-def read_json(path: Path | None) -> Any:
-    if path is None or not path.exists() or path.is_dir():
+def read_json(path: Path | None, *, label: str = "JSON artifact") -> Any:
+    if path is None:
         return {}
+    text = read_required_text(path, label=label, allow_empty=False)
     try:
-        return json.loads(path.read_text(encoding="utf-8"))
-    except json.JSONDecodeError:
-        return {}
+        return json.loads(text)
+    except json.JSONDecodeError as error:
+        raise ValueError(
+            f"{label} is not valid JSON at line {error.lineno}, column {error.colno}: {path}: {error.msg}"
+        ) from None
 
 
 def normalized_key(value: object) -> str:
@@ -178,28 +182,47 @@ def collect_keyed_strings(value: Any, keys: set[str]) -> set[str]:
 
 
 def collect_ui_tree_identifiers(path: Path | None) -> set[str]:
-    payload = read_json(path)
+    payload = read_json(path, label="UI tree")
+    if path is not None and not isinstance(payload, (dict, list)):
+        raise ValueError(f"UI tree JSON root must be an object or array: {path}")
     identifiers = collect_pattern_matches(payload, UI_TREE_ID_PATTERN)
     identifiers.update(collect_keyed_strings(payload, UI_IDENTIFIER_KEYS))
     return identifiers
 
 
 def collect_ui_tree_labels(path: Path | None) -> set[str]:
-    payload = read_json(path)
+    payload = read_json(path, label="UI tree")
+    if path is not None and not isinstance(payload, (dict, list)):
+        raise ValueError(f"UI tree JSON root must be an object or array: {path}")
     labels = collect_pattern_matches(payload, UI_TREE_LABEL_PATTERN)
     labels.update(collect_keyed_strings(payload, UI_LABEL_KEYS))
     return labels
 
 
-def collect_scenario_ids(path: Path | None) -> list[str]:
-    payload = read_json(path)
-    steps = payload.get("steps") if isinstance(payload, dict) else payload
-    if not isinstance(steps, list):
+def collect_scenario_steps(path: Path | None) -> list[Any]:
+    if path is None:
         return []
+    payload = read_json(path, label="scenario")
+    steps = payload.get("steps") if isinstance(payload, dict) else payload
+    if not isinstance(steps, list) or not steps:
+        raise ValueError(f"scenario JSON must contain a non-empty `steps` array: {path}")
+    if not all(isinstance(step, dict) for step in steps):
+        raise ValueError(f"every scenario step must be an object: {path}")
+    return steps
+
+
+def collect_scenario_ids(path: Path | None) -> list[str]:
     ids: list[str] = []
-    for step in steps:
+    for step in collect_scenario_steps(path):
         collect_scenario_identifiers(step, ids, top_level=True)
     return ids
+
+
+def collect_scenario_labels(path: Path | None) -> list[str]:
+    labels: list[str] = []
+    for step in collect_scenario_steps(path):
+        collect_scenario_label_values(step, labels, top_level=True)
+    return labels
 
 
 def selector_uses_identifier_strategy(value: dict[Any, Any]) -> bool:
@@ -210,18 +233,88 @@ def selector_uses_identifier_strategy(value: dict[Any, Any]) -> bool:
     return False
 
 
-def selector_value_key_is_locator(value: dict[Any, Any], *, selector_context: bool) -> bool:
+def selector_uses_label_strategy(value: dict[Any, Any]) -> bool:
+    for key, child in value.items():
+        if normalized_key(key) in SCENARIO_SELECTOR_STRATEGY_KEYS:
+            if isinstance(child, str) and normalized_key(child) in SCENARIO_LABEL_STRATEGIES:
+                return True
+    return False
+
+
+def selector_value_key_is_locator(value: dict[Any, Any]) -> bool:
     keys = {normalized_key(key) for key in value}
     if keys & SCENARIO_SELECTOR_NAME_KEYS:
         return False
-    if not selector_context and "value" in keys and "text" in keys:
-        return True
-    action = value.get("action")
-    if isinstance(action, str) and normalized_key(action) in SCENARIO_PAYLOAD_ACTIONS and "text" not in keys:
-        return False
-    if not selector_context and keys & SCENARIO_PAYLOAD_HINT_KEYS and "text" not in keys:
-        return False
     return True
+
+
+def mapping_has_identifier_locator(value: dict[Any, Any]) -> bool:
+    for key, child in value.items():
+        if normalized_key(key) in SCENARIO_IDENTIFIER_KEYS and collect_string_values(child):
+            return True
+    if not selector_uses_identifier_strategy(value):
+        return False
+    for key, child in value.items():
+        if normalized_key(key) in (
+            SCENARIO_SELECTOR_NAME_KEYS | SCENARIO_SELECTOR_VALUE_KEYS
+        ) and collect_string_values(child):
+            return True
+    return False
+
+
+def collect_scenario_label_values(
+    value: Any,
+    labels: list[str],
+    *,
+    selector_context: bool = False,
+    top_level: bool = False,
+) -> None:
+    if isinstance(value, dict):
+        collect_direct_labels = selector_context or top_level
+        selector_value_is_label = collect_direct_labels and selector_uses_label_strategy(value)
+        identifier_takes_precedence = (
+            collect_direct_labels and mapping_has_identifier_locator(value)
+        )
+        has_selector_name = any(
+            normalized_key(key) in SCENARIO_SELECTOR_NAME_KEYS
+            and bool(collect_string_values(child))
+            for key, child in value.items()
+        )
+        has_direct_label = any(
+            normalized_key(key) in SCENARIO_LABEL_KEYS
+            and bool(collect_string_values(child))
+            for key, child in value.items()
+        )
+        for key, child in value.items():
+            key_name = normalized_key(key)
+            if collect_direct_labels and key_name in SCENARIO_LABEL_KEYS:
+                if not identifier_takes_precedence:
+                    for item in collect_string_values(child):
+                        append_unique(labels, item)
+                continue
+            if selector_value_is_label and key_name in SCENARIO_SELECTOR_NAME_KEYS:
+                for item in collect_string_values(child):
+                    append_unique(labels, item)
+                continue
+            if (
+                selector_value_is_label
+                and key_name in SCENARIO_SELECTOR_VALUE_KEYS
+                and not has_selector_name
+                and not has_direct_label
+            ):
+                for item in collect_string_values(child):
+                    append_unique(labels, item)
+                continue
+            if key_name in SCENARIO_PAYLOAD_CONTAINER_KEYS:
+                continue
+            if key_name in SCENARIO_SELECTOR_CONTAINER_KEYS:
+                if not isinstance(child, str):
+                    collect_scenario_label_values(child, labels, selector_context=True)
+                continue
+            collect_scenario_label_values(child, labels)
+    elif isinstance(value, list):
+        for child in value:
+            collect_scenario_label_values(child, labels, selector_context=selector_context)
 
 
 def collect_scenario_identifiers(
@@ -245,7 +338,7 @@ def collect_scenario_identifiers(
                     append_unique(ids, item)
                 continue
             if selector_value_is_identifier and key_name in SCENARIO_SELECTOR_VALUE_KEYS:
-                if selector_value_key_is_locator(value, selector_context=selector_context):
+                if selector_value_key_is_locator(value):
                     for item in collect_string_values(child):
                         append_unique(ids, item)
                 continue
@@ -269,12 +362,291 @@ def is_state_dependent(identifier: str) -> bool:
     return any(token in lowered for token in STATE_DEPENDENT_TOKENS)
 
 
+CLAUSE_SPLIT_PATTERN = re.compile(
+    r"[.!?;\n]+|\b(?:but|however|whereas|yet)\b"
+)
+FAILURE_STATE_PATTERN = re.compile(
+    r"\b(?:crash(?:ed|es|ing)?|error(?:ed)?|fail(?:ed|ing|s|ure)?|hang(?:s|ing)?|"
+    r"offline|refused|stuck|timed? ?out|timeout|unavailable|unreachable|"
+    r"unsuccessful(?:ly)?|wrong screen)\b"
+    r"|\b(?:(?:http|status)\s+5\d\d|returned\s+5\d\d)\b"
+)
+NEGATED_FAILURE_PATTERN = re.compile(
+    r"\b(?:(?:did|does|do|was|were|is|are|has|have)\s+not|"
+    r"(?:didn|doesn|wasn|weren|isn|aren|hasn|haven)['’]t|never)\s+"
+    r"(?:(?!(?:after|and|before|but|later|then|yet)\b)\w+\s+){0,2}"
+    r"(?:crash(?:ed|es|ing)?|error(?:ed)?|fail(?:ed|ing|s|ure)?|"
+    r"hang(?:s|ing)?|offline|refused|stuck|timed? ?out|timeout|unavailable|"
+    r"unreachable|unsuccessful(?:ly)?)\b"
+)
+NO_FAILURE_PATTERN = re.compile(
+    r"\b(?:without|no|(?:had|has|have|with)\s+no)\s+"
+    r"(?:(?!(?:after|and|before|but|later|then|yet)\b)\w+\s+){0,4}"
+    r"(?:crash(?:ed|es|ing)?|error(?:ed)?|fail(?:ed|ing|s|ure)?|hang(?:s|ing)?|"
+    r"offline|refused|stuck|timed? ?out|timeout|unavailable|unreachable|"
+    r"unsuccessful(?:ly)?|(?:(?:http|status)\s+5\d\d)|(?:returned\s+5\d\d))\b"
+)
+NEGATED_SUCCESS_PATTERN = re.compile(
+    r"\b(?:(?:did|does|do|was|were|is|are|has|have)\s+not|"
+    r"(?:didn|doesn|wasn|weren|isn|aren|hasn|haven)['’]t|never)\s+"
+    r"(?:(?!(?:after|and|before|but|later|then|yet)\b)\w+\s+){0,2}"
+    r"(?:complete(?:d)?|ready|respond(?:ed)?|succeed(?:ed)?|"
+    r"successful(?:ly)?)\b"
+)
+DIRECT_FAILURE_PREFIX_PATTERN = re.compile(
+    r"\b(?:can(?:not|['’]t)|could(?: not|n['’]t)|did(?: not|n['’]t)|"
+    r"does(?: not|n['’]t)|do not|won['’]t|unable to|"
+    r"failed to|failure to)\s+(?:(?:open|reach|start|trigger)\s+)?$"
+)
+PARENTHETICAL_COMMA_PATTERN = re.compile(
+    r",\s*(?P<aside>(?:(?:after|although|at|because|before|despite|during|eventually|"
+    r"following|initially|on|once|surprisingly|unexpectedly|upon|when|which|while|who)\b)"
+    r"[^,\n]{0,96}),"
+)
+
+
+def spans_covering(pattern: re.Pattern[str], text: str) -> list[tuple[int, int]]:
+    return [match.span() for match in pattern.finditer(text)]
+
+
+def span_is_covered(span: tuple[int, int], covers: list[tuple[int, int]]) -> bool:
+    return any(start <= span[0] and span[1] <= end for start, end in covers)
+
+
+def without_parenthetical_commas(text: str) -> str:
+    normalized = text
+    outer_app_pattern = re.compile(r"\b(?:app|application|it|process)\s*$")
+    active_launch_aside_pattern = re.compile(
+        r"\b(?:(?:at|during|on|upon)\s+(?:app\s+)?(?:boot|launch|routing|startup)|"
+        r"when\s+(?:\w+\s+){0,3}launched|while\s+(?:\w+\s+){0,3}launching)\b"
+    )
+    while True:
+        match = PARENTHETICAL_COMMA_PATTERN.search(normalized)
+        if match is None:
+            break
+        prefix = normalized[max(0, match.start() - 64) : match.start()]
+        replacement = (
+            " launch "
+            if outer_app_pattern.search(prefix)
+            and active_launch_aside_pattern.search(match.group("aside"))
+            else " "
+        )
+        normalized = normalized[: match.start()] + replacement + normalized[match.end() :]
+    return normalized
+
+
+def parenthetical_asides(text: str) -> list[str]:
+    return [match.group("aside") for match in PARENTHETICAL_COMMA_PATTERN.finditer(text)]
+
+
+def fragment_has_failure(
+    fragment: str,
+    *,
+    unrelated_pattern: re.Pattern[str],
+    inability_verbs: str,
+    predicate_position: str,
+    negation_context: str | None = None,
+    fragment_offset: int = 0,
+) -> bool:
+    negation_source = fragment if negation_context is None else negation_context
+    negated_failures = spans_covering(NEGATED_FAILURE_PATTERN, negation_source)
+    negated_failures.extend(spans_covering(NO_FAILURE_PATTERN, negation_source))
+    inability_pattern = re.compile(
+        rf"\b(?:can(?:not|['’]t)|could(?: not|n['’]t)|won['’]t|unable to)\s+"
+        rf"(?:\w+\s+){{0,2}}(?:{inability_verbs})\b"
+    )
+
+    def has_unrelated_subject(match: re.Match[str]) -> bool:
+        before = fragment[: match.start()]
+        if unrelated_pattern.search(before):
+            return True
+        if predicate_position in {"before_subject", "standalone"}:
+            return bool(unrelated_pattern.search(fragment[match.end() :]))
+        return False
+
+    for failure in NEGATED_SUCCESS_PATTERN.finditer(fragment):
+        if not has_unrelated_subject(failure):
+            return True
+
+    for failure in inability_pattern.finditer(fragment):
+        if not has_unrelated_subject(failure):
+            return True
+
+    for failure in FAILURE_STATE_PATTERN.finditer(fragment):
+        failure_span = (
+            fragment_offset + failure.start(),
+            fragment_offset + failure.end(),
+        )
+        if span_is_covered(failure_span, negated_failures):
+            continue
+        if has_unrelated_subject(failure):
+            continue
+        return True
+
+    return False
+
+
+def subject_has_failure(
+    clause: str,
+    *,
+    subject_pattern: re.Pattern[str],
+    unrelated_pattern: re.Pattern[str],
+    inability_verbs: str,
+    scope_routing_with_prefix: bool = False,
+) -> bool:
+    negated_clause_failures = spans_covering(NEGATED_FAILURE_PATTERN, clause)
+    negated_clause_failures.extend(spans_covering(NO_FAILURE_PATTERN, clause))
+    for subject in subject_pattern.finditer(clause):
+        prefix_start = max(0, subject.start() - 96)
+        prefix = clause[prefix_start : subject.start()]
+        direct_prefix = DIRECT_FAILURE_PREFIX_PATTERN.search(prefix)
+        if direct_prefix and not unrelated_pattern.search(prefix[: direct_prefix.start()]):
+            direct_failures = list(
+                FAILURE_STATE_PATTERN.finditer(
+                    prefix[direct_prefix.start() : direct_prefix.end()]
+                )
+            )
+            direct_failure_offset = prefix_start + direct_prefix.start()
+            if not direct_failures or any(
+                not span_is_covered(
+                    (
+                        direct_failure_offset + failure.start(),
+                        direct_failure_offset + failure.end(),
+                    ),
+                    negated_clause_failures,
+                )
+                for failure in direct_failures
+            ):
+                return True
+
+        if fragment_has_failure(
+            prefix,
+            unrelated_pattern=unrelated_pattern,
+            inability_verbs=inability_verbs,
+            predicate_position="before_subject",
+            negation_context=clause,
+            fragment_offset=prefix_start,
+        ):
+            return True
+
+        if (
+            scope_routing_with_prefix
+            and subject.group(0).strip() == "routing"
+            and unrelated_pattern.search(prefix)
+        ):
+            continue
+
+        tail_end = min(len(clause), subject.end() + 128)
+        tail = clause[subject.end() : tail_end]
+
+        if fragment_has_failure(
+            tail,
+            unrelated_pattern=unrelated_pattern,
+            inability_verbs=inability_verbs,
+            predicate_position="after_subject",
+            negation_context=clause,
+            fragment_offset=subject.end(),
+        ):
+            return True
+
+    return False
+
+
+def summary_points_at_launch_failure(text: str) -> bool:
+    subject_pattern = re.compile(
+        r"\b(?:boot|deep[ -]?link|inspect|launch|simulator|startup|routing|"
+        r"(?:automation|launch|test)\s+rout(?:e|ing))\b"
+    )
+    backend_pattern = re.compile(
+        r"\b(?:api|backend|job|network|ocr|openai|processing|request|server)\b"
+    )
+    unrelated_pattern = re.compile(
+        backend_pattern.pattern + r"|\b(?:assertion|button|scenario|ui test)\b"
+    )
+    introductory_launch_pattern = re.compile(
+        r"^\s*(?:at|during|on|upon)\s+(?:app\s+)?(?:boot|launch|startup)\s*$"
+    )
+    if any(
+        subject_has_failure(
+            aside,
+            subject_pattern=subject_pattern,
+            unrelated_pattern=unrelated_pattern,
+            inability_verbs=r"boot|complete|launch|load|open|route|start|succeed|become ready",
+            scope_routing_with_prefix=True,
+        )
+        for aside in parenthetical_asides(text)
+    ):
+        return True
+    text = without_parenthetical_commas(text)
+    clauses = [
+        clause.strip()
+        for clause in CLAUSE_SPLIT_PATTERN.split(text)
+        if clause.strip()
+    ]
+
+    for index, clause in enumerate(clauses):
+        if subject_has_failure(
+            clause,
+            subject_pattern=subject_pattern,
+            unrelated_pattern=unrelated_pattern,
+            inability_verbs=r"boot|complete|launch|load|open|route|start|succeed|become ready",
+            scope_routing_with_prefix=True,
+        ):
+            return True
+        if (
+            index > 0
+            and introductory_launch_pattern.match(clauses[index - 1])
+            and fragment_has_failure(
+                clause,
+                unrelated_pattern=unrelated_pattern,
+                inability_verbs=(
+                    r"boot|complete|launch|load|open|route|start|succeed|become ready"
+                ),
+                predicate_position="standalone",
+            )
+        ):
+            return True
+    return False
+
+
+def summary_points_at_backend_failure(text: str) -> bool:
+    backend_pattern = re.compile(
+        r"\b(?:api|backend|job|network|ocr|openai|processing|request|server)\b"
+    )
+    launch_pattern = re.compile(
+        r"\b(?:boot|deep[ -]?link|inspect|launch|simulator|startup|"
+        r"(?:automation|launch|test)\s+rout(?:e|ing))\b"
+    )
+    if any(
+        subject_has_failure(
+            aside,
+            subject_pattern=backend_pattern,
+            unrelated_pattern=launch_pattern,
+            inability_verbs=r"complete|connect|process|reach|respond|return",
+        )
+        for aside in parenthetical_asides(text)
+    ):
+        return True
+    text = without_parenthetical_commas(text)
+    return any(
+        subject_has_failure(
+            clause,
+            subject_pattern=backend_pattern,
+            unrelated_pattern=launch_pattern,
+            inability_verbs=r"complete|connect|process|reach|respond|return",
+        )
+        for clause in CLAUSE_SPLIT_PATTERN.split(text)
+    )
+
+
 def classify(
     summary_text: str,
     scenario_ids: list[str],
     ui_tree_ids: set[str],
     *,
     planner_validation_error_text: str = "",
+    scenario_labels: list[str] | None = None,
+    ui_tree_labels: set[str] | None = None,
 ) -> dict[str, object]:
     combined_text = "\n".join(
         part for part in (summary_text, planner_validation_error_text) if part
@@ -282,10 +654,15 @@ def classify(
     lowered = combined_text.lower()
     scores = {bucket: 0 for bucket in ROOT_CAUSE_BUCKETS}
     evidence: list[str] = []
+    scenario_labels = scenario_labels or []
+    ui_tree_labels = ui_tree_labels or set()
 
     missing_ids = [identifier for identifier in scenario_ids if identifier not in ui_tree_ids]
     visible_ids = [identifier for identifier in scenario_ids if identifier in ui_tree_ids]
+    missing_labels = [label for label in scenario_labels if label not in ui_tree_labels]
+    visible_labels = [label for label in scenario_labels if label in ui_tree_labels]
     state_dependent_missing = [identifier for identifier in missing_ids if is_state_dependent(identifier)]
+    state_dependent_missing_labels = [label for label in missing_labels if is_state_dependent(label)]
 
     if any(
         token in lowered
@@ -307,65 +684,37 @@ def classify(
         scores["scenario contract"] += 2
         evidence.append("planner-validation-error artifact points at a scenario contract failure")
 
-    if state_dependent_missing:
+    if state_dependent_missing or state_dependent_missing_labels:
         scores["scenario contract"] += 2
         evidence.append(
-            "scenario targets state-dependent identifiers that were not present in the captured UI tree"
+            "scenario targets state-dependent identifiers or labels that were not present in the captured UI tree"
         )
 
-    if any(
-        token in lowered
-        for token in (
-            "boot",
-            "simulator",
-            "launch",
-            "startup",
-            "inspect",
-            "deep link",
-            "deeplink",
-        )
+    if summary_points_at_launch_failure(lowered):
+        scores["launch determinism"] += 2
+        evidence.append("summary points at a startup, inspect, simulator, or route failure")
+
+    if (
+        (scenario_ids or scenario_labels)
+        and not (visible_ids or visible_labels)
+        and (ui_tree_ids or ui_tree_labels)
     ):
         scores["launch determinism"] += 2
-        evidence.append("summary mentions startup, inspect, or simulator launch behavior")
+        evidence.append("none of the scenario identifiers or labels were visible in the captured UI tree")
 
-    if scenario_ids and not visible_ids and ui_tree_ids:
-        scores["launch determinism"] += 2
-        evidence.append("none of the scenario identifiers were visible in the captured UI tree")
-
-    if any(
-        token in lowered
-        for token in (
-            "not hittable",
-            "multiple matches",
-            "statictext",
-            "textfield",
-            "button",
-            "wrong element type",
-            "container",
-        )
+    if re.search(
+        r"\b(?:cannot (?:tap|type)|container collision|multiple matches|not hittable|resolved as (?:button|other|static ?text|text ?field)|wrong element type)\b|\bstatic ?text\b",
+        lowered,
     ):
         scores["app contract"] += 3
         evidence.append("summary suggests the UI exposes the wrong element type or target")
 
-    if visible_ids and missing_ids:
+    if (visible_ids or visible_labels) and (missing_ids or missing_labels):
         scores["app contract"] += 1
         scores["scenario contract"] += 1
-        evidence.append("some scenario identifiers resolve in the UI tree while others do not")
+        evidence.append("some scenario targets resolve in the UI tree while others do not")
 
-    if any(
-        token in lowered
-        for token in (
-            "network",
-            "backend",
-            "server",
-            "api",
-            "ocr",
-            "openai",
-            "job",
-            "request failed",
-            "processing",
-        )
-    ):
+    if summary_points_at_backend_failure(lowered):
         scores["backend or network dependency"] += 3
         evidence.append("summary mentions a backend, network, OCR, or AI dependency")
 
@@ -417,6 +766,9 @@ def classify(
         missing_ids=missing_ids,
         state_dependent_missing=state_dependent_missing,
         planner_validation_error_present=bool(planner_validation_error_text.strip()),
+        visible_labels=visible_labels,
+        missing_labels=missing_labels,
+        state_dependent_missing_labels=state_dependent_missing_labels,
     )
 
     return {
@@ -425,9 +777,13 @@ def classify(
         "evidence": evidence,
         "planner_validation_error_present": bool(planner_validation_error_text.strip()),
         "scenario_ids": scenario_ids,
+        "scenario_labels": scenario_labels,
         "visible_scenario_ids": visible_ids,
         "missing_scenario_ids": missing_ids,
         "state_dependent_missing_ids": state_dependent_missing,
+        "visible_scenario_labels": visible_labels,
+        "missing_scenario_labels": missing_labels,
+        "state_dependent_missing_labels": state_dependent_missing_labels,
         "next_steps": next_steps,
         "patch_plan": patch_plan,
     }
@@ -440,10 +796,25 @@ def build_patch_plan(
     missing_ids: list[str],
     state_dependent_missing: list[str],
     planner_validation_error_present: bool,
+    visible_labels: list[str] | None = None,
+    missing_labels: list[str] | None = None,
+    state_dependent_missing_labels: list[str] | None = None,
 ) -> list[str]:
-    leading_missing = missing_ids[:3]
-    leading_visible = visible_ids[:3]
-    leading_state_dependent = state_dependent_missing[:3]
+    visible_labels = visible_labels or []
+    missing_labels = missing_labels or []
+    state_dependent_missing_labels = state_dependent_missing_labels or []
+    leading_missing = [
+        *missing_ids,
+        *(f"label: {label}" for label in missing_labels),
+    ][:3]
+    leading_visible = [
+        *visible_ids,
+        *(f"label: {label}" for label in visible_labels),
+    ][:3]
+    leading_state_dependent = [
+        *state_dependent_missing,
+        *(f"label: {label}" for label in state_dependent_missing_labels),
+    ][:3]
 
     if bucket == "app contract":
         patch_plan = [
@@ -462,8 +833,8 @@ def build_patch_plan(
 
     if bucket == "scenario contract":
         patch_plan = [
-            "Rewrite the checked-in scenario or planner context so it only targets identifiers that are visible in the captured UI tree or explicitly documented as deterministic automation API.",
-            "Remove conditional-state identifiers from the main path unless launch setup guarantees that state.",
+            "Rewrite the checked-in scenario or planner context so it only targets identifiers or labels that are visible in the captured UI tree or explicitly documented as deterministic automation API.",
+            "Remove conditional-state identifiers or labels from the main path unless launch setup guarantees that state.",
         ]
         if planner_validation_error_present:
             patch_plan.append(
@@ -524,6 +895,18 @@ def print_text_report(report: dict[str, object], ui_tree_labels: set[str]) -> No
         for identifier in visible_ids:
             print(f"  - {identifier}")
 
+    missing_labels = report["missing_scenario_labels"]
+    if missing_labels:
+        print("\nMissing scenario labels")
+        for label in missing_labels:
+            print(f"  - {label}")
+
+    visible_labels = report["visible_scenario_labels"]
+    if visible_labels:
+        print("\nVisible scenario labels")
+        for label in visible_labels:
+            print(f"  - {label}")
+
     if ui_tree_labels:
         print("\nObserved UI labels")
         for label in sorted(ui_tree_labels)[:12]:
@@ -542,17 +925,31 @@ def print_patch_plan(report: dict[str, object]) -> None:
 
 def main() -> int:
     args = parse_args()
-    summary_text = read_text(args.summary)
-    planner_validation_error_text = read_text(args.planner_validation_error)
-    scenario_ids = collect_scenario_ids(args.scenario)
-    ui_tree_ids = collect_ui_tree_identifiers(args.ui_tree)
-    ui_tree_labels = collect_ui_tree_labels(args.ui_tree)
+    try:
+        summary_text = read_text(
+            args.summary,
+            label="summary",
+            allow_empty=False,
+        )
+        planner_validation_error_text = read_text(
+            args.planner_validation_error,
+            label="planner validation error",
+        )
+        scenario_ids = collect_scenario_ids(args.scenario)
+        scenario_labels = collect_scenario_labels(args.scenario)
+        ui_tree_ids = collect_ui_tree_identifiers(args.ui_tree)
+        ui_tree_labels = collect_ui_tree_labels(args.ui_tree)
+    except (OSError, UnicodeError, ValueError) as error:
+        print(f"error: {error}", file=sys.stderr)
+        return 2
 
     report = classify(
         summary_text,
         scenario_ids,
         ui_tree_ids,
         planner_validation_error_text=planner_validation_error_text,
+        scenario_labels=scenario_labels,
+        ui_tree_labels=ui_tree_labels,
     )
     if args.json:
         print(json.dumps(report, indent=2, sort_keys=True))

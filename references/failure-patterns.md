@@ -55,7 +55,7 @@ Symptoms:
 Preferred fix:
 
 - use deterministic literal identifiers for primary actions and inputs
-- reserve dynamic identifiers for repeated rows backed by stable model IDs
+- reserve dynamic identifiers for repeated rows backed by stable model IDs; names, indexes, counts, and localized text are not stable backing IDs
 - keep screen roots, primary CTA buttons, inputs, and asserted targets on literal stable identifiers
 
 ## Unreachable Screen

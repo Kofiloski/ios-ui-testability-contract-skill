@@ -10,11 +10,19 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 from pathlib import Path
 
 
 from . import inventory_accessibility_ids
 from . import inventory_launch_contract
+
+
+def positive_int(value: str) -> int:
+    parsed = int(value)
+    if parsed < 1:
+        raise argparse.ArgumentTypeError("must be a positive integer")
+    return parsed
 
 
 def parse_args() -> argparse.Namespace:
@@ -29,7 +37,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--max-identifiers",
-        type=int,
+        type=positive_int,
         default=16,
         help="Maximum number of literal identifiers to include in the markdown draft.",
     )
@@ -53,6 +61,11 @@ def build_markdown(
     route_hints: list[dict[str, object]] = launch_report["route_hints"]  # type: ignore[assignment]
     identifiers: dict[str, list[dict[str, object]]] = accessibility_report["identifiers"]  # type: ignore[assignment]
     review_needed_dynamic: list[dict[str, object]] = accessibility_report["review_needed_dynamic"]  # type: ignore[assignment]
+    skipped_symlinks = sorted(
+        set(launch_report.get("skipped_symlinks", []))
+        | set(accessibility_report.get("skipped_symlinks", []))
+    )
+    skipped_plists: list[dict[str, str]] = launch_report.get("skipped_plists", [])  # type: ignore[assignment]
 
     identifier_names = list(identifiers.keys())[:max_identifiers]
 
@@ -125,14 +138,41 @@ def build_markdown(
     lines.append(
         "- Replace this draft with exact launch settings, stable route guidance, and the specific identifiers the repo wants to expose as automation API."
     )
+    if skipped_symlinks or skipped_plists:
+        lines.extend(
+            [
+                "",
+                "## Scan notes",
+                "",
+            ]
+        )
+    if skipped_symlinks:
+        lines.extend(
+            [
+                "- Symbolic links are not followed during repository scans. Review these skipped paths if they contain app-owned automation code:",
+                *(f"  - `{path}`" for path in skipped_symlinks[:8]),
+            ]
+        )
+        if len(skipped_symlinks) > 8:
+            lines.append(f"  - ... and {len(skipped_symlinks) - 8} more")
+    if skipped_plists:
+        lines.append("- Review plist files that could not be inspected:")
+        for entry in skipped_plists[:8]:
+            lines.append(f"  - `{entry['file']}`: {entry['reason']}")
+        if len(skipped_plists) > 8:
+            lines.append(f"  - ... and {len(skipped_plists) - 8} more")
     return "\n".join(lines) + "\n"
 
 
 def main() -> int:
     args = parse_args()
-    root = Path(args.path).expanduser().resolve()
-    launch_report = inventory_launch_contract.collect(root)
-    accessibility_report = inventory_accessibility_ids.collect(root)
+    root = Path(args.path)
+    try:
+        launch_report = inventory_launch_contract.collect(root)
+        accessibility_report = inventory_accessibility_ids.collect(root)
+    except (OSError, UnicodeError, ValueError) as error:
+        print(f"error: {error}", file=sys.stderr)
+        return 2
     markdown = build_markdown(
         launch_report=launch_report,
         accessibility_report=accessibility_report,
@@ -153,8 +193,12 @@ def main() -> int:
         output = markdown
 
     if args.output is not None:
-        args.output.parent.mkdir(parents=True, exist_ok=True)
-        args.output.write_text(output, encoding="utf-8")
+        try:
+            args.output.parent.mkdir(parents=True, exist_ok=True)
+            args.output.write_text(output, encoding="utf-8")
+        except OSError as error:
+            print(f"error: could not write {args.output}: {error}", file=sys.stderr)
+            return 2
     else:
         print(output, end="" if not args.json else "\n")
 

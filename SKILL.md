@@ -38,11 +38,11 @@ Open these references as needed:
 Optional helper:
 
 - `ios-ui-testability ids`
-  Use when you need a quick inventory of literal accessibility identifiers, duplicate literals, likely non-literal identifier assignments, or likely parent-container collisions in a repo.
+  Use when you need a quick inventory of literal accessibility identifiers, duplicate literals, likely non-literal identifier assignments, or likely parent-container collisions in a repo. Dynamic row or cell identifiers are only treated as acceptable when they are backed by a stable model ID.
 - `ios-ui-testability launch`
   Use when you need a quick inventory of launch arguments, automation environment keys, URL schemes, and likely routing hooks before blaming the UI tree.
 - `ios-ui-testability triage`
-  Use when you have `summary.md`, a UI tree, a scenario file, and optionally `planner-validation-error.txt` and want a fast first-pass root-cause bucket before patching code. Pass `--report-mode patch-plan` or `--report-mode full` when you want the helper to suggest the first contract edits instead of just classifying the failure.
+  Use when you have `summary.md`, a UI tree, a scenario file, and optionally `planner-validation-error.txt` and want a fast first-pass root-cause bucket before patching code. Both accessibility identifiers and explicit scenario labels are compared with the captured UI tree. Pass `--report-mode patch-plan` or `--report-mode full` when you want the helper to suggest the first contract edits instead of just classifying the failure.
 - `ios-ui-testability draft-context`
   Use when bootstrapping or tightening `.github/ai-ui/planner-context.md` from the repo's discovered launch hooks and stable identifiers. Pass `--output` when you want it to write the draft directly into a file.
 - `scripts/inventory_accessibility_ids.py`
@@ -53,6 +53,8 @@ Optional helper:
   Compatibility wrapper for `ios-ui-testability triage`.
 - `scripts/draft_planner_context.py`
   Compatibility wrapper for `ios-ui-testability draft-context`.
+
+The helpers reject missing scan roots and missing or malformed artifacts instead of treating them as empty evidence. Recursive repository scans emit root-relative paths, skip symbolic links, and report the skipped paths; launch scans also report plist files they could not parse or read. Inspect those notes before treating an inventory as complete. Identifier inventory excludes commented code and code examples embedded in Swift raw or multiline strings.
 
 ## Inspect First
 
@@ -91,7 +93,8 @@ Apply these rules consistently:
 - Put identifiers on the actual interactive target, not broad containers, unless the container itself is the intended target.
 - Prefer literal stable identifiers in source when source discovery or planner context depends on them.
 - Expose one stable root identifier per screen or flow, then stable identifiers for primary controls within it.
-- Reserve dynamic identifiers for repeated rows or cells backed by stable model IDs. Keep screen roots, primary CTAs, input fields, and asserted targets literal and stable.
+- Reserve dynamic identifiers for repeated rows or cells backed entirely by stable model IDs; every interpolated component must be stable across launches. Keep screen roots, primary CTAs, input fields, and asserted targets literal and stable.
+- Prefer identifiers over labels for durable interaction targets. When an existing scenario intentionally uses a label, verify that exact label is exposed in the captured UI tree and is not localization-dependent.
 - Add deterministic launch routes or automation state only when the screen cannot be reached reliably through normal setup.
 - Keep the app generic. Do not make the UI contract depend on one specific testing tool.
 - Narrow or remove backend-dependent assertions unless the repo documents deterministic mocks or seeded state.

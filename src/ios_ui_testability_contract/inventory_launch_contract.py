@@ -10,10 +10,12 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import plistlib
 import re
+import sys
 from pathlib import Path
+
+from ._paths import display_path, iter_regular_files, resolve_scan_root
 
 
 SOURCE_SUFFIXES = {".swift", ".m", ".mm", ".h"}
@@ -59,28 +61,52 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def iter_files(root: Path, suffixes: set[str]) -> list[Path]:
-    if root.is_file():
-        return [root] if root.suffix in suffixes else []
-    files: list[Path] = []
-    for current_root, dirnames, filenames in os.walk(root):
-        dirnames[:] = [name for name in dirnames if name not in EXCLUDED_PARTS]
-        base_path = Path(current_root)
-        for filename in filenames:
-            path = base_path / filename
-            if path.suffix in suffixes:
-                files.append(path)
-    return sorted(files)
+def iter_files(
+    root: Path,
+    suffixes: set[str],
+    *,
+    skipped_symlinks: list[str] | None = None,
+) -> list[Path]:
+    return iter_regular_files(
+        root,
+        suffixes,
+        EXCLUDED_PARTS,
+        skipped_symlinks=skipped_symlinks,
+    )
 
 
-def collect_url_schemes(root: Path) -> list[dict[str, object]]:
+def collect_url_schemes(
+    root: Path,
+    *,
+    skipped_symlinks: list[str] | None = None,
+    skipped_plists: list[dict[str, str]] | None = None,
+) -> list[dict[str, object]]:
     schemes: list[dict[str, object]] = []
 
-    for path in iter_files(root, PLIST_SUFFIXES):
+    for path in iter_files(root, PLIST_SUFFIXES, skipped_symlinks=skipped_symlinks):
         try:
             with path.open("rb") as handle:
                 payload = plistlib.load(handle)
-        except Exception:
+        except OSError:
+            if skipped_plists is not None:
+                skipped_plists.append(
+                    {
+                        "file": display_path(path, root),
+                        "reason": "unreadable plist",
+                    }
+                )
+            continue
+        except (plistlib.InvalidFileException, ValueError, TypeError, OverflowError):
+            if skipped_plists is not None:
+                skipped_plists.append(
+                    {
+                        "file": display_path(path, root),
+                        "reason": "malformed plist",
+                    }
+                )
+            continue
+
+        if not isinstance(payload, dict):
             continue
 
         url_types = payload.get("CFBundleURLTypes")
@@ -90,23 +116,29 @@ def collect_url_schemes(root: Path) -> list[dict[str, object]]:
         for entry in url_types:
             if not isinstance(entry, dict):
                 continue
-            for scheme in entry.get("CFBundleURLSchemes", []):
+            url_schemes = entry.get("CFBundleURLSchemes")
+            if not isinstance(url_schemes, list):
+                continue
+            for scheme in url_schemes:
                 if not isinstance(scheme, str):
                     continue
-                schemes.append({"scheme": scheme, "file": str(path)})
+                schemes.append({"scheme": scheme, "file": display_path(path, root)})
 
     return schemes
 
 
 def collect(root: Path) -> dict[str, object]:
+    root = resolve_scan_root(root)
     environment_keys: set[str] = set()
     launch_arguments: set[str] = set()
     route_hints: list[dict[str, object]] = []
     automation_hints: list[dict[str, object]] = []
+    skipped_symlinks: list[str] = []
+    skipped_plists: list[dict[str, str]] = []
 
     env_tokens = ("AUTOMATION", "UITEST", "UI_TEST", "TESTING", "ROUTE", "SEED", "MOCK")
 
-    for path in iter_files(root, SOURCE_SUFFIXES):
+    for path in iter_files(root, SOURCE_SUFFIXES, skipped_symlinks=skipped_symlinks):
         try:
             text = path.read_text(encoding="utf-8")
         except UnicodeDecodeError:
@@ -123,7 +155,7 @@ def collect(root: Path) -> dict[str, object]:
             if ROUTE_HINT_PATTERN.search(line):
                 route_hints.append(
                     {
-                        "file": str(path),
+                        "file": display_path(path, root),
                         "line": line_number,
                         "source": line.strip(),
                     }
@@ -132,7 +164,7 @@ def collect(root: Path) -> dict[str, object]:
             if AUTOMATION_HINT_PATTERN.search(line):
                 automation_hints.append(
                     {
-                        "file": str(path),
+                        "file": display_path(path, root),
                         "line": line_number,
                         "source": line.strip(),
                     }
@@ -141,9 +173,18 @@ def collect(root: Path) -> dict[str, object]:
     return {
         "environment_keys": sorted(environment_keys),
         "launch_arguments": sorted(launch_arguments),
-        "url_schemes": collect_url_schemes(root),
+        "url_schemes": collect_url_schemes(
+            root,
+            skipped_symlinks=skipped_symlinks,
+            skipped_plists=skipped_plists,
+        ),
         "route_hints": route_hints,
         "automation_hints": automation_hints,
+        "skipped_symlinks": sorted(dict.fromkeys(skipped_symlinks)),
+        "skipped_plists": sorted(
+            skipped_plists,
+            key=lambda item: (item["file"], item["reason"]),
+        ),
     }
 
 
@@ -153,12 +194,16 @@ def print_text_report(report: dict[str, object]) -> None:
     url_schemes: list[dict[str, object]] = report["url_schemes"]  # type: ignore[assignment]
     route_hints: list[dict[str, object]] = report["route_hints"]  # type: ignore[assignment]
     automation_hints: list[dict[str, object]] = report["automation_hints"]  # type: ignore[assignment]
+    skipped_symlinks: list[str] = report["skipped_symlinks"]  # type: ignore[assignment]
+    skipped_plists: list[dict[str, str]] = report["skipped_plists"]  # type: ignore[assignment]
 
     print(f"Environment keys: {len(environment_keys)}")
     print(f"Launch arguments: {len(launch_arguments)}")
     print(f"URL schemes: {len(url_schemes)}")
     print(f"Route hints: {len(route_hints)}")
     print(f"Automation hints: {len(automation_hints)}")
+    print(f"Skipped symbolic links: {len(skipped_symlinks)}")
+    print(f"Skipped plist files: {len(skipped_plists)}")
 
     if environment_keys:
         print("\nEnvironment keys")
@@ -185,11 +230,28 @@ def print_text_report(report: dict[str, object]) -> None:
         for entry in automation_hints:
             print(f"  {entry['file']}:{entry['line']}  {entry['source']}")
 
+    if skipped_symlinks:
+        print("\nSkipped symbolic links")
+        for path in skipped_symlinks[:8]:
+            print(f"  {path}")
+        if len(skipped_symlinks) > 8:
+            print(f"  ... and {len(skipped_symlinks) - 8} more")
+
+    if skipped_plists:
+        print("\nSkipped plist files")
+        for entry in skipped_plists[:8]:
+            print(f"  {entry['file']}  {entry['reason']}")
+        if len(skipped_plists) > 8:
+            print(f"  ... and {len(skipped_plists) - 8} more")
+
 
 def main() -> int:
     args = parse_args()
-    root = Path(args.path).expanduser().resolve()
-    report = collect(root)
+    try:
+        report = collect(Path(args.path))
+    except (OSError, UnicodeError, ValueError) as error:
+        print(f"error: {error}", file=sys.stderr)
+        return 2
 
     if args.json:
         print(json.dumps(report, indent=2, sort_keys=True))
