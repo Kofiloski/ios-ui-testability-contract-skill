@@ -54,10 +54,12 @@ The publish workflow separates building from publishing. Only the two-step publi
 1. update the package and runtime versions plus `CITATION.cff`
 2. run the pre-publish checks
 3. commit and push the release changes to the default branch
-4. dispatch `.github/workflows/release.yml` with the exact `vX.Y.Z` tag
-5. let that workflow validate versions, create or reuse the tag, optionally update `vX`, and create the GitHub release
-6. approve the `pypi` environment deployment when the release workflow dispatches the top-level `.github/workflows/publish-pypi.yml` run
+4. create and push the exact annotated `vX.Y.Z` tag
+5. let `.github/workflows/release-tag.yml` validate the tag and create the GitHub release with the built-in repository token
+6. approve the `pypi` environment deployment when the tag workflow dispatches `.github/workflows/publish-pypi.yml`
 7. verify the package page and install it into a clean environment
+
+This tag-driven path needs only normal Git push authentication; it does not require a personal GitHub API token or organization OAuth access. The manually dispatched `.github/workflows/release.yml` remains available as an idempotent fallback from the GitHub Actions interface.
 
 The release workflow dispatches the PyPI workflow from the repository's current default branch while passing the immutable release tag as `release_tag`. This keeps the publishing machinery current without changing the source being packaged: the build job still checks out the tag and verifies its package, runtime, CLI, and citation versions against that tag.
 

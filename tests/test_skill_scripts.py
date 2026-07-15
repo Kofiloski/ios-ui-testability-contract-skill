@@ -164,6 +164,20 @@ class SkillScriptTests(unittest.TestCase):
         self.assertIn('--ref "${PUBLISH_WORKFLOW_REF}"', release_workflow)
         self.assertIn('--field release_tag="${VERSION_TAG}"', release_workflow)
 
+    def test_tag_push_can_create_a_release_without_personal_auth(self) -> None:
+        workflow = (
+            ROOT_DIR / ".github" / "workflows" / "release-tag.yml"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn('tags:\n      - "v*.*.*"', workflow)
+        self.assertIn("actions: write", workflow)
+        self.assertIn("contents: write", workflow)
+        self.assertIn("GH_TOKEN: ${{ github.token }}", workflow)
+        self.assertIn('gh release create "${RELEASE_TAG}"', workflow)
+        self.assertIn("gh workflow run publish-pypi.yml", workflow)
+        self.assertIn('--field release_tag="${RELEASE_TAG}"', workflow)
+        self.assertNotIn("secrets.", workflow)
+
     def test_workflows_use_node24_action_generations(self) -> None:
         workflows_dir = ROOT_DIR / ".github" / "workflows"
         workflows = "\n".join(

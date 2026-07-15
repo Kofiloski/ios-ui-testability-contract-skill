@@ -1,0 +1,60 @@
+name: Release tagged version
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  actions: write
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout tagged source
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Run repository checks
+        run: ./scripts/check-skill.sh
+
+      - name: Validate release version
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          package_version="$(python -c 'import tomllib; print(tomllib.load(open("pyproject.toml", "rb"))["project"]["version"])')"
+          if [[ "${RELEASE_TAG}" != "v${package_version}" ]]; then
+            echo "Release tag ${RELEASE_TAG} does not match package version ${package_version}." >&2
+            exit 1
+          fi
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          if gh release view "${RELEASE_TAG}" >/dev/null 2>&1; then
+            echo "GitHub release ${RELEASE_TAG} already exists."
+          else
+            gh release create "${RELEASE_TAG}" \
+              --verify-tag \
+              --title "${RELEASE_TAG}" \
+              --generate-notes
+          fi
+
+      - name: Dispatch PyPI publishing workflow
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PUBLISH_WORKFLOW_REF: ${{ github.event.repository.default_branch }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          gh workflow run publish-pypi.yml \
+            --ref "${PUBLISH_WORKFLOW_REF}" \
+            --field release_tag="${RELEASE_TAG}"
