@@ -31,17 +31,22 @@ GitHub CLI injects source-tracking metadata into the installed copy so `gh skill
 
 ## Install the CLI
 
-Until the package is available from PyPI, install its exact Git tag with `pipx`:
+Run the CLI directly from PyPI without a persistent install:
 
 ```bash
-pipx install "git+https://github.com/Kofiloski/ios-ui-testability-contract-skill.git@vX.Y.Z"
-ios-ui-testability --version
+uvx --from ios-ui-testability-contract ios-ui-testability --help
 ```
 
-Once a release has been published to PyPI through Trusted Publishing, the shorter install is:
+For a persistent command, install the PyPI package with `pipx`:
 
 ```bash
 pipx install ios-ui-testability-contract
+```
+
+To install an immutable GitHub release directly, use its exact tag:
+
+```bash
+pipx install "git+https://github.com/Kofiloski/ios-ui-testability-contract-skill.git@vX.Y.Z"
 ```
 
 ## Versioning

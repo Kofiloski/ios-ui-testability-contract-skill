@@ -8,8 +8,8 @@ authors:
 repository-code: "https://github.com/Kofiloski/ios-ui-testability-contract-skill"
 url: "https://github.com/Kofiloski/ios-ui-testability-contract-skill"
 license: MIT
-version: "0.4.0"
-date-released: 2026-07-14
+version: "0.4.1"
+date-released: 2026-07-15
 keywords:
   - iOS
   - SwiftUI

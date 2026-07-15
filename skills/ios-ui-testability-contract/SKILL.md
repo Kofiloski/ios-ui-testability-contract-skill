@@ -39,6 +39,12 @@ Optional helper:
 
 Run these commands when the separately packaged `ios-ui-testability` CLI is installed. The repair workflow does not depend on the CLI; inspect the same evidence directly when it is unavailable.
 
+If the CLI is missing, use this release-pinned ephemeral command only when network installation is authorized and `uvx` is available:
+
+```bash
+uvx --from ios-ui-testability-contract==0.4.1 ios-ui-testability --help
+```
+
 - `ios-ui-testability ids`
   Use when you need a quick inventory of literal accessibility identifiers, duplicate literals, likely non-literal identifier assignments, or likely parent-container collisions in a repo. Dynamic row or cell identifiers are only treated as acceptable when they are backed by a stable model ID.
 - `ios-ui-testability launch`

@@ -7,7 +7,7 @@ This repository publishes an Agent Skills package, a GitHub release, and an opti
 The GitHub release and PyPI publication serve different consumers:
 
 - the Git tag and GitHub release distribute the Agent Skill and provide immutable source installs for both the skill and CLI
-- PyPI distributes only the optional `ios-ui-testability` CLI for `pipx install ios-ui-testability-contract`
+- PyPI distributes only the optional `ios-ui-testability` CLI for `uvx --from ios-ui-testability-contract ios-ui-testability` or `pipx install ios-ui-testability-contract`
 
 Every version receives a GitHub release. PyPI publishing is an additional CI job because OpenID Connect Trusted Publishing must obtain a short-lived identity from GitHub Actions; it is not a separate agent-skill release.
 
@@ -68,14 +68,15 @@ To retry PyPI publication for an existing release with the latest safe workflow 
 ```bash
 gh workflow run publish-pypi.yml \
   --ref main \
-  --field release_tag=v0.4.0
+  --field release_tag=v0.4.1
 ```
 
-The workflow checks out `v0.4.0`; `--ref main` selects only the workflow definition. Replace both values as appropriate if the default branch or release changes.
+The workflow checks out `v0.4.1`; `--ref main` selects only the workflow definition. Replace both values as appropriate if the default branch or release changes.
 
 ## Consumer Guidance
 
 - recommend a full release tag for deterministic agent-skill and Git installs
-- recommend `pipx install ios-ui-testability-contract` after PyPI publication
+- recommend `uvx --from ios-ui-testability-contract ios-ui-testability` for one-off use
+- recommend `pipx install ios-ui-testability-contract` for a persistent command
 - use a moving major tag only for consumers who intentionally accept compatible updates
 - keep `main` installs limited to evaluation of unreleased changes

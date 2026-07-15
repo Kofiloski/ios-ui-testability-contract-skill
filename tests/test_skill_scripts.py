@@ -116,6 +116,16 @@ class SkillScriptTests(unittest.TestCase):
         self.assertIn('license = "MIT"', pyproject)
         self.assertIn('license-files = ["LICENSE"]', pyproject)
 
+    def test_published_skill_uses_release_pinned_ephemeral_cli(self) -> None:
+        skill = (
+            ROOT_DIR / "skills" / "ios-ui-testability-contract" / "SKILL.md"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn(
+            "uvx --from ios-ui-testability-contract==0.4.1 ios-ui-testability",
+            skill,
+        )
+
     def test_release_flow_dispatches_sha_pinned_oidc_publish_workflow(self) -> None:
         publish_workflow = (
             ROOT_DIR / ".github" / "workflows" / "publish-pypi.yml"
@@ -136,6 +146,7 @@ class SkillScriptTests(unittest.TestCase):
             r"pypa/gh-action-pypi-publish@[0-9a-f]{40} # release/v1",
         )
         self.assertIn("skip-existing: true", publish_workflow)
+        self.assertIn("attestations: true", publish_workflow)
         self.assertIn(
             "python scripts/read-citation-version.py",
             publish_workflow,

@@ -2,6 +2,7 @@
 
 [![CI](https://github.com/Kofiloski/ios-ui-testability-contract-skill/actions/workflows/ci.yml/badge.svg)](https://github.com/Kofiloski/ios-ui-testability-contract-skill/actions/workflows/ci.yml)
 [![GitHub release](https://img.shields.io/github/v/release/Kofiloski/ios-ui-testability-contract-skill)](https://github.com/Kofiloski/ios-ui-testability-contract-skill/releases/latest)
+[![PyPI](https://img.shields.io/pypi/v/ios-ui-testability-contract)](https://pypi.org/project/ios-ui-testability-contract/)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-3776AB)](pyproject.toml)
 [![MIT license](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
@@ -53,18 +54,19 @@ That static finding is evidence to inspect the runtime accessibility tree, not a
 
 ## Copy-Paste Quick Start
 
-Install the CLI from the latest published package release and scan an iOS repository:
+Run the CLI from PyPI without a persistent install and scan an iOS repository:
 
 ```bash
-pipx install "git+https://github.com/Kofiloski/ios-ui-testability-contract-skill.git@v0.4.0"
-ios-ui-testability ids /path/to/your-ios-repo
+uvx --from ios-ui-testability-contract ios-ui-testability ids /path/to/your-ios-repo
 ```
+
+For a persistent command, run `pipx install ios-ui-testability-contract`.
 
 Install the agent skill for Codex at user scope from the immutable release:
 
 ```bash
 gh skill install Kofiloski/ios-ui-testability-contract-skill \
-  ios-ui-testability-contract@v0.4.0 \
+  ios-ui-testability-contract@v0.4.1 \
   --agent codex \
   --scope user
 ```

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ios-ui-testability-contract"
-version = "0.4.0"
+version = "0.4.1"
 description = "Local CLI and Agent Skill for diagnosing XCUITest element lookup and deterministic launch failures in SwiftUI and UIKit."
 readme = "README.md"
 requires-python = ">=3.10"

@@ -20,6 +20,14 @@ The CLI performs local static inventory and artifact triage. The agent skill int
 
 ## CLI Surface
 
+Run once from PyPI:
+
+    uvx --from ios-ui-testability-contract ios-ui-testability --help
+
+Install persistently:
+
+    pipx install ios-ui-testability-contract
+
 - `ios-ui-testability ids PATH`: inventory accessibility identifier risks in Swift and Objective-C source.
 - `ios-ui-testability launch PATH`: inventory deterministic launch and routing hooks.
 - `ios-ui-testability triage ...`: classify a failure bundle from its summary, UI tree, scenario, and optional planner validation error.
