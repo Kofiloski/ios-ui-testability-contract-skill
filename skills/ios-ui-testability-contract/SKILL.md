@@ -42,7 +42,7 @@ Run these commands when the separately packaged `ios-ui-testability` CLI is inst
 If the CLI is missing, use this release-pinned ephemeral command only when network installation is authorized and `uvx` is available:
 
 ```bash
-uvx --from ios-ui-testability-contract==0.4.1 ios-ui-testability --help
+uvx --from ios-ui-testability-contract==0.4.2 ios-ui-testability --help
 ```
 
 - `ios-ui-testability ids`
@@ -135,4 +135,6 @@ A fix is not complete until you have:
 2. rerun one focused scenario on the exact failure path
 3. checked diff hygiene with `git diff --check`
 
-If the repo includes app-local helpers from `ios-ai-ui-check`, prefer those helpers for inspect and replay. Otherwise use the smallest direct `xcodebuild` UI test that covers the failure.
+Xcode 27 or later's native Simulator tools can help reach the screen, capture screenshots, and reproduce the interaction locally when available. Discover their schemas before use. A successful touch action or screenshot does not prove that an identifier resolves to the expected XCTest element type. Read `references/verification-loop.md` for the evidence boundary.
+
+If the repo includes app-local helpers from `ios-ai-ui-check`, prefer those helpers for contract inspection and replay. Otherwise use the smallest direct `xcodebuild` UI test that covers the failure. Native exploration supplements this replay; it does not replace it.

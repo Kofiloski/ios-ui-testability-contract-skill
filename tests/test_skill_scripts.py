@@ -122,7 +122,7 @@ class SkillScriptTests(unittest.TestCase):
         ).read_text(encoding="utf-8")
 
         self.assertIn(
-            "uvx --from ios-ui-testability-contract==0.4.1 ios-ui-testability",
+            f"uvx --from ios-ui-testability-contract=={__version__} ios-ui-testability",
             skill,
         )
 

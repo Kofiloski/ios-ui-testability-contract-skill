@@ -66,7 +66,7 @@ Install the agent skill for Codex at user scope from the immutable release:
 
 ```bash
 gh skill install Kofiloski/ios-ui-testability-contract-skill \
-  ios-ui-testability-contract@v0.4.1 \
+  ios-ui-testability-contract@v0.4.2 \
   --agent codex \
   --scope user
 ```
@@ -101,6 +101,8 @@ The installed skill tells an agent to:
 3. patch the smallest app-side accessibility or routing surface
 4. update checked-in scenarios or planner context when their contract changed
 5. prove the target resolves as the intended element type and replay the exact failing path
+
+When Xcode 27 or later exposes native Simulator tools, the skill can use them to reach the screen, send supported touch input, and capture screenshots. It discovers the actual tool schemas and reuses the app's launch/data setup. Visual success does not establish identifier uniqueness or XCTest element type; the original automation inspection and focused replay remain required.
 
 Example prompts:
 

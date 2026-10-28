@@ -4,6 +4,8 @@
 
 The CLI performs local static inventory and artifact triage. The agent skill interprets those findings with runtime UI evidence, makes the smallest app-side repair, and verifies the exact failing path. This project is not a general accessibility-conformance audit.
 
+When exposed by the connected Xcode 27 or later session, native Simulator tools can help reach the screen and capture local observations. Touch success and screenshots do not replace XCTest identifier/type inspection or replay through the failing automation tool.
+
 ## Start Here
 
 - [Project overview and quick start](https://github.com/Kofiloski/ios-ui-testability-contract-skill/blob/main/README.md)

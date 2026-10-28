@@ -70,10 +70,10 @@ To retry PyPI publication for an existing release with the latest safe workflow 
 ```bash
 gh workflow run publish-pypi.yml \
   --ref main \
-  --field release_tag=v0.4.1
+  --field release_tag=v0.4.2
 ```
 
-The workflow checks out `v0.4.1`; `--ref main` selects only the workflow definition. Replace both values as appropriate if the default branch or release changes.
+The workflow checks out `v0.4.2`; `--ref main` selects only the workflow definition. Replace both values as appropriate if the default branch or release changes.
 
 ## Consumer Guidance
 

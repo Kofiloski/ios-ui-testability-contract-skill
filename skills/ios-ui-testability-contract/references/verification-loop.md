@@ -47,3 +47,9 @@ A focused scenario should only include the critical path:
 - optional type or tap action if that interaction was the original failure
 
 Do not verify unrelated flows while confirming an accessibility-contract fix.
+
+## Native Xcode Simulator exploration
+
+When Xcode 27 or later exposes native Simulator tools to the session, use them to build/launch the app, reach the failing screen, send supported touch input, and capture the observed state. Discover the actual tool schemas first and select the intended scheme and Simulator explicitly. Reuse existing app launch/data setup. If native tools are unavailable, continue with the repo's inspect/replay helpers.
+
+Coordinates and visual labels can help reproduce a visible issue, but they do not prove identifier uniqueness, element type, or XCTest query resolution. Obtain that evidence from the failing tool's inspect output or a focused XCTest query. After patching, rerun the original failing automation path. Report native observations separately from the replay result, including any inspection or replay that could not run.
