@@ -286,6 +286,36 @@ class SkillScriptTests(unittest.TestCase):
             self.assertEqual(len(review_needed_dynamic), 3)
             self.assertEqual(len(report["likely_parent_container_collisions"]), 0)
 
+    def test_identifier_inventory_handles_large_generated_companion_files(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "Strings.swift").write_text(
+                "\n".join(
+                    f'let message{index} = "Generated message {index}"'
+                    for index in range(30_000)
+                ),
+                encoding="utf-8",
+            )
+            (root / "Controls.swift").write_text(
+                'Button("Save") {}.accessibilityIdentifier("sample.save")\n',
+                encoding="utf-8",
+            )
+            (root / "Legacy.m").write_text(
+                '[button setAccessibilityIdentifier:@"sample.objc"];\n',
+                encoding="utf-8",
+            )
+            result = subprocess.run(
+                [sys.executable, str(SCRIPTS_DIR / "inventory_accessibility_ids.py"),
+                 str(root), "--json"],
+                capture_output=True,
+                text=True,
+                timeout=10,
+                check=True,
+            )
+            report = json.loads(result.stdout)
+            self.assertEqual(set(report["identifiers"]), {"sample.save", "sample.objc"})
+            self.assertEqual(report["likely_dynamic"], [])
+
     def test_dynamic_identifier_requires_a_stable_model_member(self) -> None:
         self.assertEqual(
             inventory_accessibility_ids.classify_dynamic_entry(

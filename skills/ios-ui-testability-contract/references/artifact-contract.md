@@ -12,6 +12,7 @@ Gather these before changing code:
 - captured UI tree JSON, if available
 - checked-in scenario JSON, planner context, or repo-local runner input
 - source view and nearby launch-routing code
+- when needed, a bounded app-log excerpt or redacted persisted-state result tied to the same reproduction; label debugger/instrumented observations separately
 
 If some artifacts are missing, say so explicitly instead of guessing.
 The `triage` helper fails closed when an explicitly supplied artifact is missing, unreadable, or malformed. Fix the artifact path or payload instead of interpreting an empty-evidence report.

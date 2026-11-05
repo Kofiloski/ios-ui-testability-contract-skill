@@ -602,6 +602,9 @@ def collect(root: Path) -> dict[str, object]:
         except UnicodeDecodeError:
             text = path.read_text(encoding="utf-8", errors="ignore")
 
+        if "accessibilityIdentifier" not in text and "setAccessibilityIdentifier" not in text:
+            continue
+
         scan_text, source_strings = lex_source(text)
         lines = scan_text.splitlines()
         original_lines = text.splitlines()

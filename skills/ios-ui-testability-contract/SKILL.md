@@ -7,6 +7,8 @@ description: Fix XCUITest, AXe, and ios-ai-ui-check failures where a SwiftUI or 
 
 Use this skill to repair the app-side automation surface. Keep `XCUITest`, `AXe`, or `ios-ai-ui-check` as the detector; use this skill to make the UI expose stable, testable targets.
 
+The detector names describe supported evidence sources, not bundled dependencies. For local verification, use available Xcode/XCTest and Apple command-line tools; do not assume AXe, XcodeBuildMCP, another MCP server, or the optional Python CLI exists. Report an unavailable inspection/replay capability rather than installing a new tool without authorization.
+
 ## Non-Negotiable Rules
 
 - Inspect the actual failure artifacts before changing prompts or scenarios.
@@ -33,7 +35,7 @@ Open these references as needed:
 - `references/artifact-contract.md`
   Use when deciding what evidence to gather and what outputs a completed fix should leave behind.
 - `references/verification-loop.md`
-  Use when deciding how to reproduce, inspect, and verify the fix.
+  Use when deciding how to reproduce, inspect, and verify the fix, or when app logs, saved state, or debugger observations are needed to distinguish a UI-contract defect from another cause.
 
 Optional helper:
 
@@ -42,7 +44,7 @@ Run these commands when the separately packaged `ios-ui-testability` CLI is inst
 If the CLI is missing, use this release-pinned ephemeral command only when network installation is authorized and `uvx` is available:
 
 ```bash
-uvx --from ios-ui-testability-contract==0.4.2 ios-ui-testability --help
+uvx --from ios-ui-testability-contract==0.4.3 ios-ui-testability --help
 ```
 
 - `ios-ui-testability ids`
@@ -54,6 +56,9 @@ uvx --from ios-ui-testability-contract==0.4.2 ios-ui-testability --help
 - `ios-ui-testability draft-context`
   Use when bootstrapping or tightening `.github/ai-ui/planner-context.md` from the repo's discovered launch hooks and stable identifiers. Pass `--output` when you want it to write the draft directly into a file.
 The helpers reject missing scan roots and missing or malformed artifacts instead of treating them as empty evidence. Recursive repository scans emit root-relative paths, skip symbolic links, and report the skipped paths; launch scans also report plist files they could not parse or read. Inspect those notes before treating an inventory as complete. Identifier inventory excludes commented code and code examples embedded in Swift raw or multiline strings.
+
+For repositories containing several apps or platforms, distinguish the selected app's sources and shared code from other products and test fixtures. Record the scan scope. Repo-wide duplicate identifiers and discovered launch hooks remain candidates to inspect in the selected app's runtime tree.
+Custom identifier helpers and enum-based identifiers may escape the literal inventory. Trace the helper and inspect the runtime tree before concluding that a control lacks an identifier.
 
 ## Inspect First
 

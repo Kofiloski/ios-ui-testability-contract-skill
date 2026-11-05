@@ -66,7 +66,7 @@ Install the agent skill for Codex at user scope from the immutable release:
 
 ```bash
 gh skill install Kofiloski/ios-ui-testability-contract-skill \
-  ios-ui-testability-contract@v0.4.2 \
+  ios-ui-testability-contract@v0.4.3 \
   --agent codex \
   --scope user
 ```
